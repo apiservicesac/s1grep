@@ -18,7 +18,7 @@ pub struct SearchCommand {
     /// Results to show
     #[arg(long, short = 'n', default_value_t = 5)]
     top: usize,
-    /// Candidates the judge reads (default: 10 with granite, 5 with qwen3)
+    /// Candidates the judge reads (default: 5)
     #[arg(long)]
     judge_top: Option<usize>,
     /// Skip the System One judge and rank by embeddings only

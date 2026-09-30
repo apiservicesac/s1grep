@@ -148,9 +148,13 @@ impl Searcher {
         let questions = QuestionSet::from_json(&json!({
             "answers": {"type": "noul", "instructions": format!("{}{query}", Self::TEMPLATE)}
         }))?;
-        let states: Vec<Value> = hits[..judged].iter().map(|hit| Value::String(hit.unit.judge_state())).collect();
-        let decisions = judge.decide_batch(&states, &questions)?;
-        let scores: Vec<f64> = decisions.iter().map(|decision| decision.answers[0].1.noul()).collect();
+        // One candidate per run: a padded batch pays for its longest candidate on every row, which measured
+        // 25 % slower on CPU with identical answers.
+        let mut scores = Vec::with_capacity(judged);
+        for hit in &hits[..judged] {
+            let decisions = judge.decide_batch(&[Value::String(hit.unit.judge_state())], &questions)?;
+            scores.push(decisions[0].answers[0].1.noul());
+        }
         for (hit, score) in hits.iter_mut().zip(&scores) {
             hit.judge = Some(*score);
         }

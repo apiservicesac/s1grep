@@ -10,7 +10,24 @@ $ s1grep search "where do we retry a failed payment" ~/work/shop
           ...
 ```
 
-Status: early development. Python repositories only.
+Status: v0.1, early. Python repositories only; Linux (x86-64, glibc 2.38 or newer: Ubuntu 24.04, Debian 13) and
+Windows (x86-64).
+
+## Install
+
+1. Download the archive for your system from the [releases](https://github.com/apiservicesac/s1grep/releases) and unpack
+   it. On Windows keep `onnxruntime.dll` next to `s1grep.exe`.
+2. Download the models once (about 2.4 GB, checked with SHA-256):
+
+   ```sh
+   s1grep models download
+   s1grep models status
+   ```
+3. Search:
+
+   ```sh
+   s1grep search "where do we retry a failed payment" path/to/repo
+   ```
 
 ## How it works
 
@@ -25,10 +42,8 @@ Status: early development. Python repositories only.
 
 Everything runs on the CPU through ONNX Runtime.
 
-| Retriever | Judge reads | Why |
-|---|---|---|
-| `granite` (default): granite-embedding-278m-multilingual | 10 candidates | Fast to index on a CPU |
-| `qwen3`: Qwen3-Embedding-0.6B | 5 candidates | Better candidates, about 6 times slower to index |
+The retriever is granite-embedding-278m-multilingual, and the judge reads the first 5 candidates by default. Reading
+10 (`--judge-top 10`) takes twice as long for about 4 more right answers in 100 on the development exam.
 
 On a held-out test of 197 real searches (half English, half Spanish) the judge fused with its retriever found the right
 function first more often than either retriever alone; see the s1-code model card for the numbers.
@@ -44,7 +59,7 @@ s1grep search "export rows to csv" . --no-judge             # embeddings only
 s1grep units ~/work/shop                                    # the functions the index stores, as JSON lines
 ```
 
-Options: `--retriever granite|qwen3`, `--judge-top N`, `--include-tests` (tests/ and migrations/ are skipped by
+Options: `--judge-top N`, `--include-tests` (tests/ and migrations/ are skipped by
 default), `--threads N`, `--models <folder>`.
 
 `s1grep eval --exam <folder> --repos <folder>` runs an exam (one `<repository>.json` per repository with `text`,
@@ -53,14 +68,15 @@ language plus the median search time.
 
 ## Models
 
-s1grep looks for model bundles in `--models`, `$S1GREP_MODELS` or `~/.cache/s1grep/models`
-(`%LOCALAPPDATA%\s1grep\models` on Windows):
+`s1grep models download` puts the model bundles in `~/.cache/s1grep/models` (`%LOCALAPPDATA%\s1grep\models` on
+Windows); `--models` or `$S1GREP_MODELS` point elsewhere.
 
-| Bundle | Source |
+| Bundle | Hugging Face repository |
 |---|---|
-| `s1-code-v3-onnx` | the `onnx/` folder of `api-service-sac/s1-code-v3` on Hugging Face |
-| `granite-278m-onnx` | `./dev.sh export python -m model_export export-embedder --embedder granite` |
-| `qwen3-embedding-0.6b-onnx` | `./dev.sh export python -m model_export export-embedder --embedder qwen3` |
+| `s1-code-v3-onnx` | [api-service-sac/s1-code-v3](https://huggingface.co/api-service-sac/s1-code-v3), folder `onnx/` |
+| `granite-278m-onnx` | [api-service-sac/granite-embedding-278m-multilingual-onnx](https://huggingface.co/api-service-sac/granite-embedding-278m-multilingual-onnx) |
+
+Both can also be rebuilt from the original checkpoints with `tools/model-export`.
 
 ## Layout
 
@@ -68,7 +84,7 @@ s1grep looks for model bundles in `--models`, `$S1GREP_MODELS` or `~/.cache/s1gr
 |---|---|
 | `crates/s1-engine` | Typed questions, Laya sequence encoding, ONNX Runtime sessions, calibrated answers, embedders |
 | `crates/s1-index` | Python function extraction, repository walking, the SQLite index, vector ranking and rank fusion |
-| `crates/s1grep` | Command line: `search`, `index`, `eval`, `units`, `bench`, `decide` |
+| `crates/s1grep` | Command line: `search`, `index`, `models`, `eval`, `rerank-eval`, `units`, `bench`, `decide` |
 | `tools/model-export` | Development only: exports models to ONNX and records parity fixtures from Python |
 | `docs/decisions.md` | Measured decisions (export, precision, latency budget) |
 | `docs/model-cards` | The Hugging Face cards of s1-code v1, v2 and v3 |
@@ -91,5 +107,4 @@ within 6e-4 for answers, and cosine 0.999 or more for embeddings.
 
 ## License
 
-Apache 2.0. Laya is Apache 2.0 by Convai Innovations; granite-embedding is Apache 2.0 by IBM; Qwen3-Embedding is
-Apache 2.0 by Alibaba Cloud.
+Apache 2.0. Laya is Apache 2.0 by Convai Innovations; granite-embedding is Apache 2.0 by IBM.

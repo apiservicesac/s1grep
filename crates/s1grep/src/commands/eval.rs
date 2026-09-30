@@ -65,7 +65,7 @@ pub struct EvalCommand {
     repository_folders: Vec<PathBuf>,
     #[arg(long, value_enum, default_value_t = Retriever::Granite)]
     retriever: Retriever,
-    /// Candidates the judge reads (default: 10 with granite, 5 with qwen3)
+    /// Candidates the judge reads (default: 5)
     #[arg(long)]
     judge_top: Option<usize>,
     #[arg(long)]

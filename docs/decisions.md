@@ -27,6 +27,25 @@ On that laptop: 168 ms per 128-token fragment with 6 threads, 148 ms per fragmen
 reduce the per-fragment cost on CPU. A query can afford roughly 25 model decisions, so candidates are short units
 chosen by a cheap prefilter; the model never scans a repository.
 
+## The judge reads 5 candidates, one at a time, at 384 tokens
+
+Measured with `s1grep rerank-eval` on the 100-question development exam (granite candidates, 8 threads, the 8-core
+desktop). Top-1 after fusion; granite alone gets 66.
+
+| Tokens read | Candidates | Judge time per search | Top-1 |
+|---|---|---|---|
+| 384 | 10 | 3.8 s | 78 |
+| 384 | 5 | 1.9 s | 74 |
+| 256 | 5 | 1.1 s | 70 |
+| 192 | 5 | 0.75 s | 66 |
+| 128 | 5 | 0.48 s | 55 |
+
+- s1-code v3 was trained on 384-token inputs; cutting them costs more accuracy than it saves time.
+- 16 threads are no faster than 8.
+- Judging candidates one per run instead of in one padded batch gives identical answers 25 % faster: 1.45 s for 5
+  candidates and 2.9 s for 10.
+- The default is 5 candidates; `--judge-top 10` trades twice the time for about 4 more right answers in 100.
+
 ## Toolchain
 
 The prebuilt ONNX Runtime linked by `ort` needs glibc 2.38 or newer, so builds run on Debian trixie. Portable

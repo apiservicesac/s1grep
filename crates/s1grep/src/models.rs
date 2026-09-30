@@ -8,7 +8,8 @@ use clap::{Args, ValueEnum};
 pub enum Retriever {
     /// granite-embedding-278m-multilingual: fast to index on a CPU
     Granite,
-    /// Qwen3-Embedding-0.6B: better candidates, about 6 times slower to index
+    /// Qwen3-Embedding-0.6B: better candidates, about 6 times slower to index (not shipped yet)
+    #[value(hide = true)]
     Qwen3,
 }
 
@@ -28,10 +29,10 @@ impl Retriever {
         }
     }
 
-    /// Candidates the judge reads by default: the count that kept dev accuracy for each retriever.
+    /// Candidates the judge reads by default: 5 costs half of 10 on a CPU for 4 fewer right answers in 100 on dev.
     pub fn default_judged(self) -> usize {
         match self {
-            Self::Granite => 10,
+            Self::Granite => 5,
             Self::Qwen3 => 5,
         }
     }
@@ -48,6 +49,11 @@ pub struct ModelDirectory {
 impl ModelDirectory {
     pub const JUDGE_BUNDLE: &'static str = "s1-code-v3-onnx";
 
+    /// The folder passed with `--models` or `S1GREP_MODELS`, if any.
+    pub fn root(&self) -> Option<&std::path::Path> {
+        self.root.as_deref()
+    }
+
     pub fn bundle(&self, name: &str) -> anyhow::Result<PathBuf> {
         let root = match &self.root {
             Some(root) => root.clone(),
@@ -55,7 +61,7 @@ impl ModelDirectory {
         };
         let directory = root.join(name);
         if !directory.is_dir() {
-            bail!("model {name} not found in {} (pass --models or set S1GREP_MODELS)", root.display());
+            bail!("model {name} not found in {} (run `s1grep models download`, or pass --models)", root.display());
         }
         Ok(directory)
     }
