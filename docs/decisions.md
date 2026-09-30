@@ -46,6 +46,36 @@ desktop). Top-1 after fusion; granite alone gets 66.
   candidates and 2.9 s for 10.
 - The default is 5 candidates; `--judge-top 10` trades twice the time for about 4 more right answers in 100.
 
+## v0.1 on the held-out test
+
+`s1grep eval` with the shipped settings (granite, the judge reads 5 candidates) on the held-out test of 201 real
+searches, whose settings were chosen on the development exam only:
+
+| | English (103) | Spanish (98) | All (201) |
+|---|---|---|---|
+| granite alone, top-1 | 71 | 74 | 145 (72 %) |
+| s1grep, top-1 | 85 | 83 | 168 (84 %) |
+| s1grep, top-5 | 96 | 93 | 189 (94 %) |
+
+Median search time 1.46 s on the 8-core desktop, model loading excluded.
+
+## Other programming languages
+
+s1-code v3 was trained on Python only. On 100 CodeSearchNet queries per language (the first docstring sentence;
+25 granite candidates from the same repository; the judge reads 10), top-1 changed as follows:
+
+| Language | granite alone | with the judge |
+|---|---|---|
+| Python | 91 | 95 |
+| Java | 58 | 68 |
+| PHP | 79 | 82 |
+| Ruby | 53 | 54 |
+| JavaScript | 67 | 59 |
+| Go | 47 | 41 |
+
+The judge helps on Java and PHP, is neutral on Ruby and hurts on JavaScript and Go, so those languages should be
+searched without it until a model is trained on them. With 100 queries each difference carries about ±9 points.
+
 ## Toolchain
 
 The prebuilt ONNX Runtime linked by `ort` needs glibc 2.38 or newer, so builds run on Debian trixie. Portable

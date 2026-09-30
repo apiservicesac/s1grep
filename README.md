@@ -45,8 +45,9 @@ Everything runs on the CPU through ONNX Runtime.
 The retriever is granite-embedding-278m-multilingual, and the judge reads the first 5 candidates by default. Reading
 10 (`--judge-top 10`) takes twice as long for about 4 more right answers in 100 on the development exam.
 
-On a held-out test of 197 real searches (half English, half Spanish) the judge fused with its retriever found the right
-function first more often than either retriever alone; see the s1-code model card for the numbers.
+On a held-out test of 201 real searches (103 in English, 98 in Spanish), s1grep puts the right function first 168
+times against 145 for the embeddings alone, with a median search of 1.5 s on an 8-core CPU
+(see [docs/decisions.md](docs/decisions.md)).
 
 ## Usage
 
