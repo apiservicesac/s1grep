@@ -1,0 +1,4422 @@
+{
+ "max_len": 384,
+ "head_max_len": 128,
+ "cases": [
+  {
+   "name": "code_search_retry_send",
+   "state": "billing/gateway/client.py\nGatewayClient.send_with_retry\n\ndef send_with_retry(self, document, attempts=3):\n    for attempt in range(attempts):\n        response = self.post(document)\n        if response.ok:\n            return response\n        time.sleep(2 ** attempt)\n    raise GatewayUnavailable(document.number)\n",
+   "questions": {
+    "en": {
+     "type": "noul",
+     "instructions": "This code answers the search: where do we retry sending an invoice to the payment gateway when it fails"
+    },
+    "es": {
+     "type": "noul",
+     "instructions": "This code answers the search: dónde se reintenta el envío de la factura a la pasarela de pago cuando falla"
+    },
+    "mixed": {
+     "type": "noul",
+     "instructions": "This code answers the search: cómo hago el retry del envío a la pasarela"
+    }
+   },
+   "sequences": {
+    "en": {
+     "input_ids": [
+      2,
+      552,
+      6311,
+      2872,
+      235292,
+      1417,
+      3409,
+      10523,
+      573,
+      4544,
+      235292,
+      1570,
+      749,
+      783,
+      64054,
+      17583,
+      671,
+      42529,
+      577,
+      573,
+      7984,
+      47041,
+      1185,
+      665,
+      21326,
+      1,
+      4,
+      1566,
+      235292,
+      793,
+      235269,
+      573,
+      6218,
+      1721,
+      780,
+      3385,
+      4,
+      1382,
+      235292,
+      7778,
+      235269,
+      573,
+      6218,
+      12723,
+      1,
+      54972,
+      235283,
+      56853,
+      235283,
+      5251,
+      235265,
+      2158,
+      108,
+      53785,
+      4609,
+      235265,
+      5450,
+      235298,
+      3041,
+      235298,
+      48719,
+      109,
+      1698,
+      5527,
+      235298,
+      3041,
+      235298,
+      48719,
+      235278,
+      1053,
+      235269,
+      4551,
+      235269,
+      18664,
+      235293,
+      235304,
+      1245,
+      108,
+      235248,
+      235248,
+      235248,
+      604,
+      8697,
+      575,
+      3001,
+      235278,
+      120448,
+      1245,
+      108,
+      235248,
+      235248,
+      235248,
+      235248,
+      235248,
+      235248,
+      235248,
+      3590,
+      589,
+      2011,
+      235265,
+      2729,
+      235278,
+      5517,
+      235275,
+      108,
+      235248,
+      235248,
+      235248,
+      235248,
+      235248,
+      235248,
+      235248,
+      1013,
+      3590,
+      235265,
+      1124,
+      235292,
+      108,
+      235248,
+      235248,
+      235248,
+      235248,
+      235248,
+      235248,
+      235248,
+      235248,
+      235248,
+      235248,
+      235248,
+      2203,
+      3590,
+      108,
+      235248,
+      235248,
+      235248,
+      235248,
+      235248,
+      235248,
+      235248,
+      1069,
+      235265,
+      9343,
+      235278,
+      235284,
+      5231,
+      8697,
+      235275,
+      108,
+      235248,
+      235248,
+      235248,
+      12310,
+      53785,
+      135391,
+      235278,
+      5517,
+      235265,
+      4308,
+      235275,
+      108,
+      1
+     ],
+     "markers": [
+      26,
+      36
+     ]
+    },
+    "es": {
+     "input_ids": [
+      2,
+      552,
+      6311,
+      2872,
+      235292,
+      1417,
+      3409,
+      10523,
+      573,
+      4544,
+      235292,
+      54284,
+      699,
+      582,
+      635,
+      3136,
+      822,
+      49889,
+      581,
+      683,
+      97569,
+      476,
+      683,
+      1806,
+      52140,
+      581,
+      38450,
+      9354,
+      47873,
+      1,
+      4,
+      1566,
+      235292,
+      793,
+      235269,
+      573,
+      6218,
+      1721,
+      780,
+      3385,
+      4,
+      1382,
+      235292,
+      7778,
+      235269,
+      573,
+      6218,
+      12723,
+      1,
+      54972,
+      235283,
+      56853,
+      235283,
+      5251,
+      235265,
+      2158,
+      108,
+      53785,
+      4609,
+      235265,
+      5450,
+      235298,
+      3041,
+      235298,
+      48719,
+      109,
+      1698,
+      5527,
+      235298,
+      3041,
+      235298,
+      48719,
+      235278,
+      1053,
+      235269,
+      4551,
+      235269,
+      18664,
+      235293,
+      235304,
+      1245,
+      108,
+      235248,
+      235248,
+      235248,
+      604,
+      8697,
+      575,
+      3001,
+      235278,
+      120448,
+      1245,
+      108,
+      235248,
+      235248,
+      235248,
+      235248,
+      235248,
+      235248,
+      235248,
+      3590,
+      589,
+      2011,
+      235265,
+      2729,
+      235278,
+      5517,
+      235275,
+      108,
+      235248,
+      235248,
+      235248,
+      235248,
+      235248,
+      235248,
+      235248,
+      1013,
+      3590,
+      235265,
+      1124,
+      235292,
+      108,
+      235248,
+      235248,
+      235248,
+      235248,
+      235248,
+      235248,
+      235248,
+      235248,
+      235248,
+      235248,
+      235248,
+      2203,
+      3590,
+      108,
+      235248,
+      235248,
+      235248,
+      235248,
+      235248,
+      235248,
+      235248,
+      1069,
+      235265,
+      9343,
+      235278,
+      235284,
+      5231,
+      8697,
+      235275,
+      108,
+      235248,
+      235248,
+      235248,
+      12310,
+      53785,
+      135391,
+      235278,
+      5517,
+      235265,
+      4308,
+      235275,
+      108,
+      1
+     ],
+     "markers": [
+      30,
+      40
+     ]
+    },
+    "mixed": {
+     "input_ids": [
+      2,
+      552,
+      6311,
+      2872,
+      235292,
+      1417,
+      3409,
+      10523,
+      573,
+      4544,
+      235292,
+      20048,
+      96631,
+      822,
+      64054,
+      1177,
+      49889,
+      476,
+      683,
+      1806,
+      52140,
+      1,
+      4,
+      1566,
+      235292,
+      793,
+      235269,
+      573,
+      6218,
+      1721,
+      780,
+      3385,
+      4,
+      1382,
+      235292,
+      7778,
+      235269,
+      573,
+      6218,
+      12723,
+      1,
+      54972,
+      235283,
+      56853,
+      235283,
+      5251,
+      235265,
+      2158,
+      108,
+      53785,
+      4609,
+      235265,
+      5450,
+      235298,
+      3041,
+      235298,
+      48719,
+      109,
+      1698,
+      5527,
+      235298,
+      3041,
+      235298,
+      48719,
+      235278,
+      1053,
+      235269,
+      4551,
+      235269,
+      18664,
+      235293,
+      235304,
+      1245,
+      108,
+      235248,
+      235248,
+      235248,
+      604,
+      8697,
+      575,
+      3001,
+      235278,
+      120448,
+      1245,
+      108,
+      235248,
+      235248,
+      235248,
+      235248,
+      235248,
+      235248,
+      235248,
+      3590,
+      589,
+      2011,
+      235265,
+      2729,
+      235278,
+      5517,
+      235275,
+      108,
+      235248,
+      235248,
+      235248,
+      235248,
+      235248,
+      235248,
+      235248,
+      1013,
+      3590,
+      235265,
+      1124,
+      235292,
+      108,
+      235248,
+      235248,
+      235248,
+      235248,
+      235248,
+      235248,
+      235248,
+      235248,
+      235248,
+      235248,
+      235248,
+      2203,
+      3590,
+      108,
+      235248,
+      235248,
+      235248,
+      235248,
+      235248,
+      235248,
+      235248,
+      1069,
+      235265,
+      9343,
+      235278,
+      235284,
+      5231,
+      8697,
+      235275,
+      108,
+      235248,
+      235248,
+      235248,
+      12310,
+      53785,
+      135391,
+      235278,
+      5517,
+      235265,
+      4308,
+      235275,
+      108,
+      1
+     ],
+     "markers": [
+      22,
+      32
+     ]
+    }
+   },
+   "answers": {
+    "onnx": {
+     "en": {
+      "type": "noul",
+      "noul": 0.926,
+      "confidence": 0.926,
+      "action": {
+       "act_probability": 1.0
+      }
+     },
+     "es": {
+      "type": "noul",
+      "noul": 0.8898,
+      "confidence": 0.8898,
+      "action": {
+       "act_probability": 1.0
+      }
+     },
+     "mixed": {
+      "type": "noul",
+      "noul": 0.7531,
+      "confidence": 0.7531,
+      "action": {
+       "act_probability": 1.0
+      }
+     }
+    },
+    "torch": {
+     "en": {
+      "type": "noul",
+      "noul": 0.926,
+      "confidence": 0.926,
+      "answer_confidence": 0.926,
+      "action": {
+       "act_probability": 1.0
+      }
+     },
+     "es": {
+      "type": "noul",
+      "noul": 0.8898,
+      "confidence": 0.8898,
+      "answer_confidence": 0.8898,
+      "action": {
+       "act_probability": 1.0
+      }
+     },
+     "mixed": {
+      "type": "noul",
+      "noul": 0.7531,
+      "confidence": 0.7531,
+      "answer_confidence": 0.7531,
+      "action": {
+       "act_probability": 1.0
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "code_search_sibling_send",
+   "state": "billing/gateway/client.py\nGatewayClient.send\n\ndef send(self, document):\n    return self.post(document)\n",
+   "questions": {
+    "en": {
+     "type": "noul",
+     "instructions": "This code answers the search: where do we retry sending an invoice to the payment gateway when it fails"
+    },
+    "es": {
+     "type": "noul",
+     "instructions": "This code answers the search: dónde se reintenta el envío de la factura a la pasarela de pago cuando falla"
+    },
+    "mixed": {
+     "type": "noul",
+     "instructions": "This code answers the search: cómo hago el retry del envío a la pasarela"
+    }
+   },
+   "sequences": {
+    "en": {
+     "input_ids": [
+      2,
+      552,
+      6311,
+      2872,
+      235292,
+      1417,
+      3409,
+      10523,
+      573,
+      4544,
+      235292,
+      1570,
+      749,
+      783,
+      64054,
+      17583,
+      671,
+      42529,
+      577,
+      573,
+      7984,
+      47041,
+      1185,
+      665,
+      21326,
+      1,
+      4,
+      1566,
+      235292,
+      793,
+      235269,
+      573,
+      6218,
+      1721,
+      780,
+      3385,
+      4,
+      1382,
+      235292,
+      7778,
+      235269,
+      573,
+      6218,
+      12723,
+      1,
+      54972,
+      235283,
+      56853,
+      235283,
+      5251,
+      235265,
+      2158,
+      108,
+      53785,
+      4609,
+      235265,
+      5450,
+      109,
+      1698,
+      5527,
+      235278,
+      1053,
+      235269,
+      4551,
+      1245,
+      108,
+      235248,
+      235248,
+      235248,
+      2203,
+      2011,
+      235265,
+      2729,
+      235278,
+      5517,
+      235275,
+      108,
+      1
+     ],
+     "markers": [
+      26,
+      36
+     ]
+    },
+    "es": {
+     "input_ids": [
+      2,
+      552,
+      6311,
+      2872,
+      235292,
+      1417,
+      3409,
+      10523,
+      573,
+      4544,
+      235292,
+      54284,
+      699,
+      582,
+      635,
+      3136,
+      822,
+      49889,
+      581,
+      683,
+      97569,
+      476,
+      683,
+      1806,
+      52140,
+      581,
+      38450,
+      9354,
+      47873,
+      1,
+      4,
+      1566,
+      235292,
+      793,
+      235269,
+      573,
+      6218,
+      1721,
+      780,
+      3385,
+      4,
+      1382,
+      235292,
+      7778,
+      235269,
+      573,
+      6218,
+      12723,
+      1,
+      54972,
+      235283,
+      56853,
+      235283,
+      5251,
+      235265,
+      2158,
+      108,
+      53785,
+      4609,
+      235265,
+      5450,
+      109,
+      1698,
+      5527,
+      235278,
+      1053,
+      235269,
+      4551,
+      1245,
+      108,
+      235248,
+      235248,
+      235248,
+      2203,
+      2011,
+      235265,
+      2729,
+      235278,
+      5517,
+      235275,
+      108,
+      1
+     ],
+     "markers": [
+      30,
+      40
+     ]
+    },
+    "mixed": {
+     "input_ids": [
+      2,
+      552,
+      6311,
+      2872,
+      235292,
+      1417,
+      3409,
+      10523,
+      573,
+      4544,
+      235292,
+      20048,
+      96631,
+      822,
+      64054,
+      1177,
+      49889,
+      476,
+      683,
+      1806,
+      52140,
+      1,
+      4,
+      1566,
+      235292,
+      793,
+      235269,
+      573,
+      6218,
+      1721,
+      780,
+      3385,
+      4,
+      1382,
+      235292,
+      7778,
+      235269,
+      573,
+      6218,
+      12723,
+      1,
+      54972,
+      235283,
+      56853,
+      235283,
+      5251,
+      235265,
+      2158,
+      108,
+      53785,
+      4609,
+      235265,
+      5450,
+      109,
+      1698,
+      5527,
+      235278,
+      1053,
+      235269,
+      4551,
+      1245,
+      108,
+      235248,
+      235248,
+      235248,
+      2203,
+      2011,
+      235265,
+      2729,
+      235278,
+      5517,
+      235275,
+      108,
+      1
+     ],
+     "markers": [
+      22,
+      32
+     ]
+    }
+   },
+   "answers": {
+    "onnx": {
+     "en": {
+      "type": "noul",
+      "noul": 0.5236,
+      "confidence": 0.5236,
+      "action": {
+       "act_probability": 1.0
+      }
+     },
+     "es": {
+      "type": "noul",
+      "noul": 0.2145,
+      "confidence": 0.7855,
+      "action": {
+       "act_probability": 1.0
+      }
+     },
+     "mixed": {
+      "type": "noul",
+      "noul": 0.073,
+      "confidence": 0.927,
+      "action": {
+       "act_probability": 1.0
+      }
+     }
+    },
+    "torch": {
+     "en": {
+      "type": "noul",
+      "noul": 0.5236,
+      "confidence": 0.5236,
+      "answer_confidence": 0.5236,
+      "action": {
+       "act_probability": 1.0
+      }
+     },
+     "es": {
+      "type": "noul",
+      "noul": 0.2145,
+      "confidence": 0.7855,
+      "answer_confidence": 0.7855,
+      "action": {
+       "act_probability": 1.0
+      }
+     },
+     "mixed": {
+      "type": "noul",
+      "noul": 0.073,
+      "confidence": 0.927,
+      "answer_confidence": 0.927,
+      "action": {
+       "act_probability": 1.0
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "code_search_invoice_total",
+   "state": "billing/models/invoice.py\nInvoice.compute_total\n\ndef compute_total(self):\n    subtotal = sum(line.amount for line in self.lines)\n    return round(subtotal * (1 + self.tax_rate), 2)\n",
+   "questions": {
+    "en": {
+     "type": "noul",
+     "instructions": "This code answers the search: where do we retry sending an invoice to the payment gateway when it fails"
+    },
+    "es": {
+     "type": "noul",
+     "instructions": "This code answers the search: dónde se reintenta el envío de la factura a la pasarela de pago cuando falla"
+    },
+    "mixed": {
+     "type": "noul",
+     "instructions": "This code answers the search: cómo hago el retry del envío a la pasarela"
+    }
+   },
+   "sequences": {
+    "en": {
+     "input_ids": [
+      2,
+      552,
+      6311,
+      2872,
+      235292,
+      1417,
+      3409,
+      10523,
+      573,
+      4544,
+      235292,
+      1570,
+      749,
+      783,
+      64054,
+      17583,
+      671,
+      42529,
+      577,
+      573,
+      7984,
+      47041,
+      1185,
+      665,
+      21326,
+      1,
+      4,
+      1566,
+      235292,
+      793,
+      235269,
+      573,
+      6218,
+      1721,
+      780,
+      3385,
+      4,
+      1382,
+      235292,
+      7778,
+      235269,
+      573,
+      6218,
+      12723,
+      1,
+      54972,
+      235283,
+      8171,
+      235283,
+      38771,
+      235265,
+      2158,
+      108,
+      77500,
+      235265,
+      32331,
+      235298,
+      5436,
+      109,
+      1698,
+      23428,
+      235298,
+      5436,
+      235278,
+      1053,
+      1245,
+      108,
+      235248,
+      235248,
+      235248,
+      224042,
+      589,
+      2707,
+      235278,
+      703,
+      235265,
+      10526,
+      604,
+      2017,
+      575,
+      2011,
+      235265,
+      5448,
+      235275,
+      108,
+      235248,
+      235248,
+      235248,
+      2203,
+      5094,
+      235278,
+      131884,
+      649,
+      591,
+      235274,
+      963,
+      2011,
+      235265,
+      16334,
+      235298,
+      5423,
+      823,
+      235248,
+      235284,
+      235275,
+      108,
+      1
+     ],
+     "markers": [
+      26,
+      36
+     ]
+    },
+    "es": {
+     "input_ids": [
+      2,
+      552,
+      6311,
+      2872,
+      235292,
+      1417,
+      3409,
+      10523,
+      573,
+      4544,
+      235292,
+      54284,
+      699,
+      582,
+      635,
+      3136,
+      822,
+      49889,
+      581,
+      683,
+      97569,
+      476,
+      683,
+      1806,
+      52140,
+      581,
+      38450,
+      9354,
+      47873,
+      1,
+      4,
+      1566,
+      235292,
+      793,
+      235269,
+      573,
+      6218,
+      1721,
+      780,
+      3385,
+      4,
+      1382,
+      235292,
+      7778,
+      235269,
+      573,
+      6218,
+      12723,
+      1,
+      54972,
+      235283,
+      8171,
+      235283,
+      38771,
+      235265,
+      2158,
+      108,
+      77500,
+      235265,
+      32331,
+      235298,
+      5436,
+      109,
+      1698,
+      23428,
+      235298,
+      5436,
+      235278,
+      1053,
+      1245,
+      108,
+      235248,
+      235248,
+      235248,
+      224042,
+      589,
+      2707,
+      235278,
+      703,
+      235265,
+      10526,
+      604,
+      2017,
+      575,
+      2011,
+      235265,
+      5448,
+      235275,
+      108,
+      235248,
+      235248,
+      235248,
+      2203,
+      5094,
+      235278,
+      131884,
+      649,
+      591,
+      235274,
+      963,
+      2011,
+      235265,
+      16334,
+      235298,
+      5423,
+      823,
+      235248,
+      235284,
+      235275,
+      108,
+      1
+     ],
+     "markers": [
+      30,
+      40
+     ]
+    },
+    "mixed": {
+     "input_ids": [
+      2,
+      552,
+      6311,
+      2872,
+      235292,
+      1417,
+      3409,
+      10523,
+      573,
+      4544,
+      235292,
+      20048,
+      96631,
+      822,
+      64054,
+      1177,
+      49889,
+      476,
+      683,
+      1806,
+      52140,
+      1,
+      4,
+      1566,
+      235292,
+      793,
+      235269,
+      573,
+      6218,
+      1721,
+      780,
+      3385,
+      4,
+      1382,
+      235292,
+      7778,
+      235269,
+      573,
+      6218,
+      12723,
+      1,
+      54972,
+      235283,
+      8171,
+      235283,
+      38771,
+      235265,
+      2158,
+      108,
+      77500,
+      235265,
+      32331,
+      235298,
+      5436,
+      109,
+      1698,
+      23428,
+      235298,
+      5436,
+      235278,
+      1053,
+      1245,
+      108,
+      235248,
+      235248,
+      235248,
+      224042,
+      589,
+      2707,
+      235278,
+      703,
+      235265,
+      10526,
+      604,
+      2017,
+      575,
+      2011,
+      235265,
+      5448,
+      235275,
+      108,
+      235248,
+      235248,
+      235248,
+      2203,
+      5094,
+      235278,
+      131884,
+      649,
+      591,
+      235274,
+      963,
+      2011,
+      235265,
+      16334,
+      235298,
+      5423,
+      823,
+      235248,
+      235284,
+      235275,
+      108,
+      1
+     ],
+     "markers": [
+      22,
+      32
+     ]
+    }
+   },
+   "answers": {
+    "onnx": {
+     "en": {
+      "type": "noul",
+      "noul": 0.0061,
+      "confidence": 0.9939,
+      "action": {
+       "act_probability": 1.0
+      }
+     },
+     "es": {
+      "type": "noul",
+      "noul": 0.0064,
+      "confidence": 0.9936,
+      "action": {
+       "act_probability": 1.0
+      }
+     },
+     "mixed": {
+      "type": "noul",
+      "noul": 0.001,
+      "confidence": 0.999,
+      "action": {
+       "act_probability": 1.0
+      }
+     }
+    },
+    "torch": {
+     "en": {
+      "type": "noul",
+      "noul": 0.0061,
+      "confidence": 0.9939,
+      "answer_confidence": 0.9939,
+      "action": {
+       "act_probability": 1.0
+      }
+     },
+     "es": {
+      "type": "noul",
+      "noul": 0.0064,
+      "confidence": 0.9936,
+      "answer_confidence": 0.9936,
+      "action": {
+       "act_probability": 1.0
+      }
+     },
+     "mixed": {
+      "type": "noul",
+      "noul": 0.001,
+      "confidence": 0.999,
+      "answer_confidence": 0.999,
+      "action": {
+       "act_probability": 1.0
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "noul_python_auth",
+   "state": "def verify_token(token: str) -> bool:\n    claims = jwt.decode(token, SECRET, algorithms=['HS256'])\n    return claims['exp'] > time.time()\n",
+   "questions": {
+    "relevant": {
+     "type": "noul",
+     "instructions": "This code validates authentication tokens."
+    },
+    "unrelated": {
+     "type": "noul",
+     "instructions": "This code renders a chart."
+    }
+   },
+   "sequences": {
+    "relevant": {
+     "input_ids": [
+      2,
+      552,
+      6311,
+      2872,
+      235292,
+      1417,
+      3409,
+      185293,
+      34671,
+      24571,
+      235265,
+      1,
+      4,
+      1566,
+      235292,
+      793,
+      235269,
+      573,
+      6218,
+      1721,
+      780,
+      3385,
+      4,
+      1382,
+      235292,
+      7778,
+      235269,
+      573,
+      6218,
+      12723,
+      1,
+      1698,
+      17231,
+      235298,
+      5526,
+      235278,
+      5526,
+      235292,
+      1295,
+      235275,
+      3978,
+      6535,
+      235292,
+      108,
+      235248,
+      235248,
+      235248,
+      10861,
+      589,
+      45563,
+      235265,
+      19522,
+      235278,
+      5526,
+      235269,
+      67987,
+      235269,
+      28514,
+      43536,
+      10124,
+      235284,
+      235308,
+      235318,
+      11566,
+      108,
+      235248,
+      235248,
+      235248,
+      2203,
+      10861,
+      1829,
+      3093,
+      2074,
+      1562,
+      1069,
+      235265,
+      1602,
+      645,
+      108,
+      1
+     ],
+     "markers": [
+      12,
+      22
+     ]
+    },
+    "unrelated": {
+     "input_ids": [
+      2,
+      552,
+      6311,
+      2872,
+      235292,
+      1417,
+      3409,
+      61596,
+      476,
+      12859,
+      235265,
+      1,
+      4,
+      1566,
+      235292,
+      793,
+      235269,
+      573,
+      6218,
+      1721,
+      780,
+      3385,
+      4,
+      1382,
+      235292,
+      7778,
+      235269,
+      573,
+      6218,
+      12723,
+      1,
+      1698,
+      17231,
+      235298,
+      5526,
+      235278,
+      5526,
+      235292,
+      1295,
+      235275,
+      3978,
+      6535,
+      235292,
+      108,
+      235248,
+      235248,
+      235248,
+      10861,
+      589,
+      45563,
+      235265,
+      19522,
+      235278,
+      5526,
+      235269,
+      67987,
+      235269,
+      28514,
+      43536,
+      10124,
+      235284,
+      235308,
+      235318,
+      11566,
+      108,
+      235248,
+      235248,
+      235248,
+      2203,
+      10861,
+      1829,
+      3093,
+      2074,
+      1562,
+      1069,
+      235265,
+      1602,
+      645,
+      108,
+      1
+     ],
+     "markers": [
+      12,
+      22
+     ]
+    }
+   },
+   "answers": {
+    "onnx": {
+     "relevant": {
+      "type": "noul",
+      "noul": 0.7672,
+      "confidence": 0.7672,
+      "action": {
+       "act_probability": 1.0
+      }
+     },
+     "unrelated": {
+      "type": "noul",
+      "noul": 0.001,
+      "confidence": 0.999,
+      "action": {
+       "act_probability": 1.0
+      }
+     }
+    },
+    "torch": {
+     "relevant": {
+      "type": "noul",
+      "noul": 0.7672,
+      "confidence": 0.7672,
+      "answer_confidence": 0.7672,
+      "action": {
+       "act_probability": 1.0
+      }
+     },
+     "unrelated": {
+      "type": "noul",
+      "noul": 0.001,
+      "confidence": 0.999,
+      "answer_confidence": 0.999,
+      "action": {
+       "act_probability": 1.0
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "noul_spanish_query_typescript",
+   "state": "export async function saveInvoice(db: Db, invoice: Invoice) {\n\tawait db.insert('invoices', invoice);\n\treturn invoice.id;\n}\n",
+   "questions": {
+    "relevant": {
+     "type": "noul",
+     "instructions": "¿Este código guarda una factura en la base de datos?"
+    }
+   },
+   "sequences": {
+    "relevant": {
+     "input_ids": [
+      2,
+      552,
+      6311,
+      2872,
+      235292,
+      6742,
+      20260,
+      40260,
+      62748,
+      1749,
+      97569,
+      659,
+      683,
+      3222,
+      581,
+      16275,
+      235336,
+      1,
+      4,
+      1566,
+      235292,
+      793,
+      235269,
+      573,
+      6218,
+      1721,
+      780,
+      3385,
+      4,
+      1382,
+      235292,
+      7778,
+      235269,
+      573,
+      6218,
+      12723,
+      1,
+      13576,
+      8102,
+      1411,
+      5381,
+      40308,
+      235278,
+      2949,
+      235292,
+      31433,
+      235269,
+      42529,
+      235292,
+      77500,
+      235275,
+      612,
+      108,
+      235248,
+      226,
+      7677,
+      8288,
+      235265,
+      8831,
+      1101,
+      159490,
+      920,
+      42529,
+      594,
+      108,
+      235248,
+      226,
+      773,
+      42529,
+      235265,
+      539,
+      235289,
+      108,
+      1117,
+      108,
+      1
+     ],
+     "markers": [
+      18,
+      28
+     ]
+    }
+   },
+   "answers": {
+    "onnx": {
+     "relevant": {
+      "type": "noul",
+      "noul": 0.9629,
+      "confidence": 0.9629,
+      "action": {
+       "act_probability": 1.0
+      }
+     }
+    },
+    "torch": {
+     "relevant": {
+      "type": "noul",
+      "noul": 0.9629,
+      "confidence": 0.9629,
+      "answer_confidence": 0.9629,
+      "action": {
+       "act_probability": 1.0
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "choice_list_and_described",
+   "state": "fn main() {\n    let args: Vec<String> = std::env::args().collect();\n    println!(\"{:?}\", args);\n}\n",
+   "questions": {
+    "language": {
+     "type": "choice",
+     "instructions": "Which language is this?",
+     "criteria": [
+      "python",
+      "rust",
+      "go",
+      "typescript"
+     ]
+    },
+    "role": {
+     "type": "choice",
+     "instructions": "What does this code do?",
+     "criteria": {
+      "entrypoint": "program entry point",
+      "test": "a unit test",
+      "library": ""
+     }
+    }
+   },
+   "sequences": {
+    "language": {
+     "input_ids": [
+      2,
+      6241,
+      2872,
+      235292,
+      12236,
+      5255,
+      603,
+      736,
+      235336,
+      1,
+      4,
+      17706,
+      4,
+      23539,
+      4,
+      871,
+      4,
+      222992,
+      1,
+      15910,
+      1872,
+      645,
+      612,
+      108,
+      235248,
+      235248,
+      235248,
+      2142,
+      6329,
+      235292,
+      29786,
+      235322,
+      1239,
+      235313,
+      589,
+      6015,
+      1220,
+      6605,
+      1220,
+      5212,
+      2320,
+      22593,
+      821,
+      108,
+      235248,
+      235248,
+      235248,
+      148992,
+      231592,
+      235292,
+      159700,
+      6329,
+      594,
+      108,
+      1117,
+      108,
+      1
+     ],
+     "markers": [
+      10,
+      12,
+      14,
+      16
+     ]
+    },
+    "role": {
+     "input_ids": [
+      2,
+      6241,
+      2872,
+      235292,
+      2439,
+      1721,
+      736,
+      3409,
+      749,
+      235336,
+      1,
+      4,
+      7929,
+      3371,
+      235292,
+      2733,
+      7929,
+      2377,
+      4,
+      2121,
+      235292,
+      476,
+      4982,
+      2121,
+      4,
+      9581,
+      1,
+      15910,
+      1872,
+      645,
+      612,
+      108,
+      235248,
+      235248,
+      235248,
+      2142,
+      6329,
+      235292,
+      29786,
+      235322,
+      1239,
+      235313,
+      589,
+      6015,
+      1220,
+      6605,
+      1220,
+      5212,
+      2320,
+      22593,
+      821,
+      108,
+      235248,
+      235248,
+      235248,
+      148992,
+      231592,
+      235292,
+      159700,
+      6329,
+      594,
+      108,
+      1117,
+      108,
+      1
+     ],
+     "markers": [
+      11,
+      18,
+      24
+     ]
+    }
+   },
+   "answers": {
+    "onnx": {
+     "language": {
+      "type": "choice",
+      "choice": "python",
+      "probabilities": {
+       "python": 0.4106,
+       "rust": 0.226,
+       "go": 0.2102,
+       "typescript": 0.1531
+      },
+      "confidence": 0.0501,
+      "action": {
+       "act_probability": 1.0
+      }
+     },
+     "role": {
+      "type": "choice",
+      "choice": "entrypoint",
+      "probabilities": {
+       "entrypoint": 0.499,
+       "test": 0.2113,
+       "library": 0.2897
+      },
+      "confidence": 0.0586,
+      "action": {
+       "act_probability": 1.0
+      }
+     }
+    },
+    "torch": {
+     "language": {
+      "type": "choice",
+      "choice": "python",
+      "probabilities": {
+       "python": 0.4106,
+       "rust": 0.226,
+       "go": 0.2102,
+       "typescript": 0.1531
+      },
+      "confidence": 0.0501,
+      "answer_confidence": 0.4106,
+      "action": {
+       "act_probability": 1.0
+      }
+     },
+     "role": {
+      "type": "choice",
+      "choice": "entrypoint",
+      "probabilities": {
+       "entrypoint": 0.499,
+       "test": 0.2113,
+       "library": 0.2897
+      },
+      "confidence": 0.0586,
+      "answer_confidence": 0.499,
+      "action": {
+       "act_probability": 1.0
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "score_levels",
+   "state": "class Cache:\n    def __init__(self):\n        self.items = {}\n",
+   "questions": {
+    "usefulness": {
+     "type": "score",
+     "instructions": "How relevant is this to cache eviction?",
+     "criteria": [
+      "not related",
+      "mentions caching",
+      "implements storage",
+      "implements eviction"
+     ]
+    }
+   },
+   "sequences": {
+    "usefulness": {
+     "input_ids": [
+      2,
+      7716,
+      2872,
+      235292,
+      2250,
+      9666,
+      603,
+      736,
+      577,
+      15324,
+      127870,
+      235336,
+      1,
+      4,
+      2403,
+      235248,
+      235276,
+      235292,
+      780,
+      5678,
+      4,
+      2403,
+      235248,
+      235274,
+      235292,
+      41986,
+      116463,
+      4,
+      2403,
+      235248,
+      235284,
+      235292,
+      11319,
+      7387,
+      4,
+      2403,
+      235248,
+      235304,
+      235292,
+      11319,
+      127870,
+      1,
+      1062,
+      40693,
+      235292,
+      108,
+      235248,
+      235248,
+      235248,
+      1698,
+      3043,
+      3389,
+      8273,
+      1053,
+      1245,
+      108,
+      235248,
+      235248,
+      235248,
+      235248,
+      235248,
+      235248,
+      235248,
+      2011,
+      235265,
+      7325,
+      589,
+      5969,
+      108,
+      1
+     ],
+     "markers": [
+      13,
+      20,
+      27,
+      34
+     ]
+    }
+   },
+   "answers": {
+    "onnx": {
+     "usefulness": {
+      "type": "score",
+      "score": 1.4987,
+      "legend": {
+       "0": "not related",
+       "1": "mentions caching",
+       "2": "implements storage",
+       "3": "implements eviction"
+      },
+      "probabilities": {
+       "0": 0.1706,
+       "1": 0.3577,
+       "2": 0.2741,
+       "3": 0.1976
+      },
+      "confidence": 0.0301,
+      "action": {
+       "act_probability": 1.0
+      }
+     }
+    },
+    "torch": {
+     "usefulness": {
+      "type": "score",
+      "score": 1.4987,
+      "legend": {
+       "0": "not related",
+       "1": "mentions caching",
+       "2": "implements storage",
+       "3": "implements eviction"
+      },
+      "probabilities": {
+       "0": 0.1706,
+       "1": 0.3577,
+       "2": 0.2741,
+       "3": 0.1976
+      },
+      "confidence": 0.0301,
+      "answer_confidence": 0.3577,
+      "action": {
+       "act_probability": 1.0
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "noul_custom_labels_and_criteria",
+   "state": "SELECT * FROM users WHERE id = %s",
+   "questions": {
+    "sql": {
+     "type": "noul",
+     "instructions": "This is a SQL query.",
+     "labels": {
+      "false": "no",
+      "true": "yes"
+     },
+     "criteria": {
+      "true": "it is SQL",
+      "false": ""
+     }
+    }
+   },
+   "sequences": {
+    "sql": {
+     "input_ids": [
+      2,
+      552,
+      6311,
+      2872,
+      235292,
+      1417,
+      603,
+      476,
+      15678,
+      8164,
+      235265,
+      1,
+      4,
+      793,
+      235292,
+      793,
+      235269,
+      573,
+      6218,
+      1721,
+      780,
+      3385,
+      4,
+      7778,
+      235292,
+      665,
+      603,
+      15678,
+      1,
+      47345,
+      649,
+      10158,
+      6211,
+      18765,
+      807,
+      589,
+      2348,
+      235256,
+      1
+     ],
+     "markers": [
+      12,
+      22
+     ]
+    }
+   },
+   "answers": {
+    "onnx": {
+     "sql": {
+      "type": "noul",
+      "noul": 0.7001,
+      "confidence": 0.7001,
+      "action": {
+       "act_probability": 1.0
+      }
+     }
+    },
+    "torch": {
+     "sql": {
+      "type": "noul",
+      "noul": 0.7001,
+      "confidence": 0.7001,
+      "answer_confidence": 0.7001,
+      "action": {
+       "act_probability": 1.0
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "mask_token_in_text",
+   "state": "tokenizer.mask_token = '<mask>'  # <mask> appears here",
+   "questions": {
+    "mask": {
+     "type": "noul",
+     "instructions": "It mentions <mask> tokens."
+    }
+   },
+   "sequences": {
+    "mask": {
+     "input_ids": [
+      2,
+      552,
+      6311,
+      2872,
+      235292,
+      1165,
+      41986,
+      235248,
+      235248,
+      24571,
+      235265,
+      1,
+      4,
+      1566,
+      235292,
+      793,
+      235269,
+      573,
+      6218,
+      1721,
+      780,
+      3385,
+      4,
+      1382,
+      235292,
+      7778,
+      235269,
+      573,
+      6218,
+      12723,
+      1,
+      142224,
+      235265,
+      11315,
+      235298,
+      5526,
+      589,
+      777,
+      777,
+      235248,
+      1700,
+      235248,
+      235248,
+      8149,
+      1517,
+      1
+     ],
+     "markers": [
+      12,
+      22
+     ]
+    }
+   },
+   "answers": {
+    "onnx": {
+     "mask": {
+      "type": "noul",
+      "noul": 0.6048,
+      "confidence": 0.6048,
+      "action": {
+       "act_probability": 1.0
+      }
+     }
+    },
+    "torch": {
+     "mask": {
+      "type": "noul",
+      "noul": 0.6048,
+      "confidence": 0.6048,
+      "answer_confidence": 0.6048,
+      "action": {
+       "act_probability": 1.0
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "long_state_truncated_right",
+   "state": "def handler_0(request):\n    value = request.get('field_0')\n    return normalize(value) * 0\n\ndef handler_1(request):\n    value = request.get('field_1')\n    return normalize(value) * 1\n\ndef handler_2(request):\n    value = request.get('field_2')\n    return normalize(value) * 2\n\ndef handler_3(request):\n    value = request.get('field_3')\n    return normalize(value) * 3\n\ndef handler_4(request):\n    value = request.get('field_4')\n    return normalize(value) * 4\n\ndef handler_5(request):\n    value = request.get('field_5')\n    return normalize(value) * 5\n\ndef handler_6(request):\n    value = request.get('field_6')\n    return normalize(value) * 6\n\ndef handler_7(request):\n    value = request.get('field_7')\n    return normalize(value) * 7\n\ndef handler_8(request):\n    value = request.get('field_8')\n    return normalize(value) * 8\n\ndef handler_9(request):\n    value = request.get('field_9')\n    return normalize(value) * 9\n\ndef handler_10(request):\n    value = request.get('field_10')\n    return normalize(value) * 10\n\ndef handler_11(request):\n    value = request.get('field_11')\n    return normalize(value) * 11\n\ndef handler_12(request):\n    value = request.get('field_12')\n    return normalize(value) * 12\n\ndef handler_13(request):\n    value = request.get('field_13')\n    return normalize(value) * 13\n\ndef handler_14(request):\n    value = request.get('field_14')\n    return normalize(value) * 14\n\ndef handler_15(request):\n    value = request.get('field_15')\n    return normalize(value) * 15\n\ndef handler_16(request):\n    value = request.get('field_16')\n    return normalize(value) * 16\n\ndef handler_17(request):\n    value = request.get('field_17')\n    return normalize(value) * 17\n\ndef handler_18(request):\n    value = request.get('field_18')\n    return normalize(value) * 18\n\ndef handler_19(request):\n    value = request.get('field_19')\n    return normalize(value) * 19\n\ndef handler_20(request):\n    value = request.get('field_20')\n    return normalize(value) * 20\n\ndef handler_21(request):\n    value = request.get('field_21')\n    return normalize(value) * 21\n\ndef handler_22(request):\n    value = request.get('field_22')\n    return normalize(value) * 22\n\ndef handler_23(request):\n    value = request.get('field_23')\n    return normalize(value) * 23\n\ndef handler_24(request):\n    value = request.get('field_24')\n    return normalize(value) * 24\n\ndef handler_25(request):\n    value = request.get('field_25')\n    return normalize(value) * 25\n\ndef handler_26(request):\n    value = request.get('field_26')\n    return normalize(value) * 26\n\ndef handler_27(request):\n    value = request.get('field_27')\n    return normalize(value) * 27\n\ndef handler_28(request):\n    value = request.get('field_28')\n    return normalize(value) * 28\n\ndef handler_29(request):\n    value = request.get('field_29')\n    return normalize(value) * 29\n\ndef handler_30(request):\n    value = request.get('field_30')\n    return normalize(value) * 30\n\ndef handler_31(request):\n    value = request.get('field_31')\n    return normalize(value) * 31\n\ndef handler_32(request):\n    value = request.get('field_32')\n    return normalize(value) * 32\n\ndef handler_33(request):\n    value = request.get('field_33')\n    return normalize(value) * 33\n\ndef handler_34(request):\n    value = request.get('field_34')\n    return normalize(value) * 34\n\ndef handler_35(request):\n    value = request.get('field_35')\n    return normalize(value) * 35\n\ndef handler_36(request):\n    value = request.get('field_36')\n    return normalize(value) * 36\n\ndef handler_37(request):\n    value = request.get('field_37')\n    return normalize(value) * 37\n\ndef handler_38(request):\n    value = request.get('field_38')\n    return normalize(value) * 38\n\ndef handler_39(request):\n    value = request.get('field_39')\n    return normalize(value) * 39\n\ndef handler_40(request):\n    value = request.get('field_40')\n    return normalize(value) * 40\n\ndef handler_41(request):\n    value = request.get('field_41')\n    return normalize(value) * 41\n\ndef handler_42(request):\n    value = request.get('field_42')\n    return normalize(value) * 42\n\ndef handler_43(request):\n    value = request.get('field_43')\n    return normalize(value) * 43\n\ndef handler_44(request):\n    value = request.get('field_44')\n    return normalize(value) * 44\n\ndef handler_45(request):\n    value = request.get('field_45')\n    return normalize(value) * 45\n\ndef handler_46(request):\n    value = request.get('field_46')\n    return normalize(value) * 46\n\ndef handler_47(request):\n    value = request.get('field_47')\n    return normalize(value) * 47\n\ndef handler_48(request):\n    value = request.get('field_48')\n    return normalize(value) * 48\n\ndef handler_49(request):\n    value = request.get('field_49')\n    return normalize(value) * 49\n\ndef handler_50(request):\n    value = request.get('field_50')\n    return normalize(value) * 50\n\ndef handler_51(request):\n    value = request.get('field_51')\n    return normalize(value) * 51\n\ndef handler_52(request):\n    value = request.get('field_52')\n    return normalize(value) * 52\n\ndef handler_53(request):\n    value = request.get('field_53')\n    return normalize(value) * 53\n\ndef handler_54(request):\n    value = request.get('field_54')\n    return normalize(value) * 54\n\ndef handler_55(request):\n    value = request.get('field_55')\n    return normalize(value) * 55\n\ndef handler_56(request):\n    value = request.get('field_56')\n    return normalize(value) * 56\n\ndef handler_57(request):\n    value = request.get('field_57')\n    return normalize(value) * 57\n\ndef handler_58(request):\n    value = request.get('field_58')\n    return normalize(value) * 58\n\ndef handler_59(request):\n    value = request.get('field_59')\n    return normalize(value) * 59\n\ndef handler_60(request):\n    value = request.get('field_60')\n    return normalize(value) * 60\n\ndef handler_61(request):\n    value = request.get('field_61')\n    return normalize(value) * 61\n\ndef handler_62(request):\n    value = request.get('field_62')\n    return normalize(value) * 62\n\ndef handler_63(request):\n    value = request.get('field_63')\n    return normalize(value) * 63\n\ndef handler_64(request):\n    value = request.get('field_64')\n    return normalize(value) * 64\n\ndef handler_65(request):\n    value = request.get('field_65')\n    return normalize(value) * 65\n\ndef handler_66(request):\n    value = request.get('field_66')\n    return normalize(value) * 66\n\ndef handler_67(request):\n    value = request.get('field_67')\n    return normalize(value) * 67\n\ndef handler_68(request):\n    value = request.get('field_68')\n    return normalize(value) * 68\n\ndef handler_69(request):\n    value = request.get('field_69')\n    return normalize(value) * 69\n\ndef handler_70(request):\n    value = request.get('field_70')\n    return normalize(value) * 70\n\ndef handler_71(request):\n    value = request.get('field_71')\n    return normalize(value) * 71\n\ndef handler_72(request):\n    value = request.get('field_72')\n    return normalize(value) * 72\n\ndef handler_73(request):\n    value = request.get('field_73')\n    return normalize(value) * 73\n\ndef handler_74(request):\n    value = request.get('field_74')\n    return normalize(value) * 74\n\ndef handler_75(request):\n    value = request.get('field_75')\n    return normalize(value) * 75\n\ndef handler_76(request):\n    value = request.get('field_76')\n    return normalize(value) * 76\n\ndef handler_77(request):\n    value = request.get('field_77')\n    return normalize(value) * 77\n\ndef handler_78(request):\n    value = request.get('field_78')\n    return normalize(value) * 78\n\ndef handler_79(request):\n    value = request.get('field_79')\n    return normalize(value) * 79\n\ndef handler_80(request):\n    value = request.get('field_80')\n    return normalize(value) * 80\n\ndef handler_81(request):\n    value = request.get('field_81')\n    return normalize(value) * 81\n\ndef handler_82(request):\n    value = request.get('field_82')\n    return normalize(value) * 82\n\ndef handler_83(request):\n    value = request.get('field_83')\n    return normalize(value) * 83\n\ndef handler_84(request):\n    value = request.get('field_84')\n    return normalize(value) * 84\n\ndef handler_85(request):\n    value = request.get('field_85')\n    return normalize(value) * 85\n\ndef handler_86(request):\n    value = request.get('field_86')\n    return normalize(value) * 86\n\ndef handler_87(request):\n    value = request.get('field_87')\n    return normalize(value) * 87\n\ndef handler_88(request):\n    value = request.get('field_88')\n    return normalize(value) * 88\n\ndef handler_89(request):\n    value = request.get('field_89')\n    return normalize(value) * 89\n\ndef handler_90(request):\n    value = request.get('field_90')\n    return normalize(value) * 90\n\ndef handler_91(request):\n    value = request.get('field_91')\n    return normalize(value) * 91\n\ndef handler_92(request):\n    value = request.get('field_92')\n    return normalize(value) * 92\n\ndef handler_93(request):\n    value = request.get('field_93')\n    return normalize(value) * 93\n\ndef handler_94(request):\n    value = request.get('field_94')\n    return normalize(value) * 94\n\ndef handler_95(request):\n    value = request.get('field_95')\n    return normalize(value) * 95\n\ndef handler_96(request):\n    value = request.get('field_96')\n    return normalize(value) * 96\n\ndef handler_97(request):\n    value = request.get('field_97')\n    return normalize(value) * 97\n\ndef handler_98(request):\n    value = request.get('field_98')\n    return normalize(value) * 98\n\ndef handler_99(request):\n    value = request.get('field_99')\n    return normalize(value) * 99\n\ndef handler_100(request):\n    value = request.get('field_100')\n    return normalize(value) * 100\n\ndef handler_101(request):\n    value = request.get('field_101')\n    return normalize(value) * 101\n\ndef handler_102(request):\n    value = request.get('field_102')\n    return normalize(value) * 102\n\ndef handler_103(request):\n    value = request.get('field_103')\n    return normalize(value) * 103\n\ndef handler_104(request):\n    value = request.get('field_104')\n    return normalize(value) * 104\n\ndef handler_105(request):\n    value = request.get('field_105')\n    return normalize(value) * 105\n\ndef handler_106(request):\n    value = request.get('field_106')\n    return normalize(value) * 106\n\ndef handler_107(request):\n    value = request.get('field_107')\n    return normalize(value) * 107\n\ndef handler_108(request):\n    value = request.get('field_108')\n    return normalize(value) * 108\n\ndef handler_109(request):\n    value = request.get('field_109')\n    return normalize(value) * 109\n\ndef handler_110(request):\n    value = request.get('field_110')\n    return normalize(value) * 110\n\ndef handler_111(request):\n    value = request.get('field_111')\n    return normalize(value) * 111\n\ndef handler_112(request):\n    value = request.get('field_112')\n    return normalize(value) * 112\n\ndef handler_113(request):\n    value = request.get('field_113')\n    return normalize(value) * 113\n\ndef handler_114(request):\n    value = request.get('field_114')\n    return normalize(value) * 114\n\ndef handler_115(request):\n    value = request.get('field_115')\n    return normalize(value) * 115\n\ndef handler_116(request):\n    value = request.get('field_116')\n    return normalize(value) * 116\n\ndef handler_117(request):\n    value = request.get('field_117')\n    return normalize(value) * 117\n\ndef handler_118(request):\n    value = request.get('field_118')\n    return normalize(value) * 118\n\ndef handler_119(request):\n    value = request.get('field_119')\n    return normalize(value) * 119\n\ndef handler_120(request):\n    value = request.get('field_120')\n    return normalize(value) * 120\n\ndef handler_121(request):\n    value = request.get('field_121')\n    return normalize(value) * 121\n\ndef handler_122(request):\n    value = request.get('field_122')\n    return normalize(value) * 122\n\ndef handler_123(request):\n    value = request.get('field_123')\n    return normalize(value) * 123\n\ndef handler_124(request):\n    value = request.get('field_124')\n    return normalize(value) * 124\n\ndef handler_125(request):\n    value = request.get('field_125')\n    return normalize(value) * 125\n\ndef handler_126(request):\n    value = request.get('field_126')\n    return normalize(value) * 126\n\ndef handler_127(request):\n    value = request.get('field_127')\n    return normalize(value) * 127\n\ndef handler_128(request):\n    value = request.get('field_128')\n    return normalize(value) * 128\n\ndef handler_129(request):\n    value = request.get('field_129')\n    return normalize(value) * 129\n\ndef handler_130(request):\n    value = request.get('field_130')\n    return normalize(value) * 130\n\ndef handler_131(request):\n    value = request.get('field_131')\n    return normalize(value) * 131\n\ndef handler_132(request):\n    value = request.get('field_132')\n    return normalize(value) * 132\n\ndef handler_133(request):\n    value = request.get('field_133')\n    return normalize(value) * 133\n\ndef handler_134(request):\n    value = request.get('field_134')\n    return normalize(value) * 134\n\ndef handler_135(request):\n    value = request.get('field_135')\n    return normalize(value) * 135\n\ndef handler_136(request):\n    value = request.get('field_136')\n    return normalize(value) * 136\n\ndef handler_137(request):\n    value = request.get('field_137')\n    return normalize(value) * 137\n\ndef handler_138(request):\n    value = request.get('field_138')\n    return normalize(value) * 138\n\ndef handler_139(request):\n    value = request.get('field_139')\n    return normalize(value) * 139\n\ndef handler_140(request):\n    value = request.get('field_140')\n    return normalize(value) * 140\n\ndef handler_141(request):\n    value = request.get('field_141')\n    return normalize(value) * 141\n\ndef handler_142(request):\n    value = request.get('field_142')\n    return normalize(value) * 142\n\ndef handler_143(request):\n    value = request.get('field_143')\n    return normalize(value) * 143\n\ndef handler_144(request):\n    value = request.get('field_144')\n    return normalize(value) * 144\n\ndef handler_145(request):\n    value = request.get('field_145')\n    return normalize(value) * 145\n\ndef handler_146(request):\n    value = request.get('field_146')\n    return normalize(value) * 146\n\ndef handler_147(request):\n    value = request.get('field_147')\n    return normalize(value) * 147\n\ndef handler_148(request):\n    value = request.get('field_148')\n    return normalize(value) * 148\n\ndef handler_149(request):\n    value = request.get('field_149')\n    return normalize(value) * 149\n\ndef handler_150(request):\n    value = request.get('field_150')\n    return normalize(value) * 150\n\ndef handler_151(request):\n    value = request.get('field_151')\n    return normalize(value) * 151\n\ndef handler_152(request):\n    value = request.get('field_152')\n    return normalize(value) * 152\n\ndef handler_153(request):\n    value = request.get('field_153')\n    return normalize(value) * 153\n\ndef handler_154(request):\n    value = request.get('field_154')\n    return normalize(value) * 154\n\ndef handler_155(request):\n    value = request.get('field_155')\n    return normalize(value) * 155\n\ndef handler_156(request):\n    value = request.get('field_156')\n    return normalize(value) * 156\n\ndef handler_157(request):\n    value = request.get('field_157')\n    return normalize(value) * 157\n\ndef handler_158(request):\n    value = request.get('field_158')\n    return normalize(value) * 158\n\ndef handler_159(request):\n    value = request.get('field_159')\n    return normalize(value) * 159\n",
+   "questions": {
+    "handlers": {
+     "type": "noul",
+     "instructions": "This file defines request handlers."
+    }
+   },
+   "sequences": {
+    "handlers": {
+     "input_ids": [
+      2,
+      552,
+      6311,
+      2872,
+      235292,
+      1417,
+      2482,
+      32550,
+      3853,
+      63572,
+      235265,
+      1,
+      4,
+      1566,
+      235292,
+      793,
+      235269,
+      573,
+      6218,
+      1721,
+      780,
+      3385,
+      4,
+      1382,
+      235292,
+      7778,
+      235269,
+      573,
+      6218,
+      12723,
+      1,
+      1698,
+      19638,
+      235298,
+      235276,
+      235278,
+      3840,
+      1245,
+      108,
+      235248,
+      235248,
+      235248,
+      1618,
+      589,
+      3853,
+      235265,
+      818,
+      1101,
+      2863,
+      235298,
+      235276,
+      1685,
+      108,
+      235248,
+      235248,
+      235248,
+      2203,
+      54519,
+      235278,
+      1869,
+      235275,
+      649,
+      235248,
+      235276,
+      109,
+      1698,
+      19638,
+      235298,
+      235274,
+      235278,
+      3840,
+      1245,
+      108,
+      235248,
+      235248,
+      235248,
+      1618,
+      589,
+      3853,
+      235265,
+      818,
+      1101,
+      2863,
+      235298,
+      235274,
+      1685,
+      108,
+      235248,
+      235248,
+      235248,
+      2203,
+      54519,
+      235278,
+      1869,
+      235275,
+      649,
+      235248,
+      235274,
+      109,
+      1698,
+      19638,
+      235298,
+      235284,
+      235278,
+      3840,
+      1245,
+      108,
+      235248,
+      235248,
+      235248,
+      1618,
+      589,
+      3853,
+      235265,
+      818,
+      1101,
+      2863,
+      235298,
+      235284,
+      1685,
+      108,
+      235248,
+      235248,
+      235248,
+      2203,
+      54519,
+      235278,
+      1869,
+      235275,
+      649,
+      235248,
+      235284,
+      109,
+      1698,
+      19638,
+      235298,
+      235304,
+      235278,
+      3840,
+      1245,
+      108,
+      235248,
+      235248,
+      235248,
+      1618,
+      589,
+      3853,
+      235265,
+      818,
+      1101,
+      2863,
+      235298,
+      235304,
+      1685,
+      108,
+      235248,
+      235248,
+      235248,
+      2203,
+      54519,
+      235278,
+      1869,
+      235275,
+      649,
+      235248,
+      235304,
+      109,
+      1698,
+      19638,
+      235298,
+      235310,
+      235278,
+      3840,
+      1245,
+      108,
+      235248,
+      235248,
+      235248,
+      1618,
+      589,
+      3853,
+      235265,
+      818,
+      1101,
+      2863,
+      235298,
+      235310,
+      1685,
+      108,
+      235248,
+      235248,
+      235248,
+      2203,
+      54519,
+      235278,
+      1869,
+      235275,
+      649,
+      235248,
+      235310,
+      109,
+      1698,
+      19638,
+      235298,
+      235308,
+      235278,
+      3840,
+      1245,
+      108,
+      235248,
+      235248,
+      235248,
+      1618,
+      589,
+      3853,
+      235265,
+      818,
+      1101,
+      2863,
+      235298,
+      235308,
+      1685,
+      108,
+      235248,
+      235248,
+      235248,
+      2203,
+      54519,
+      235278,
+      1869,
+      235275,
+      649,
+      235248,
+      235308,
+      109,
+      1698,
+      19638,
+      235298,
+      235318,
+      235278,
+      3840,
+      1245,
+      108,
+      235248,
+      235248,
+      235248,
+      1618,
+      589,
+      3853,
+      235265,
+      818,
+      1101,
+      2863,
+      235298,
+      235318,
+      1685,
+      108,
+      235248,
+      235248,
+      235248,
+      2203,
+      54519,
+      235278,
+      1869,
+      235275,
+      649,
+      235248,
+      235318,
+      109,
+      1698,
+      19638,
+      235298,
+      235324,
+      235278,
+      3840,
+      1245,
+      108,
+      235248,
+      235248,
+      235248,
+      1618,
+      589,
+      3853,
+      235265,
+      818,
+      1101,
+      2863,
+      235298,
+      235324,
+      1685,
+      108,
+      235248,
+      235248,
+      235248,
+      2203,
+      54519,
+      235278,
+      1869,
+      235275,
+      649,
+      235248,
+      235324,
+      109,
+      1698,
+      19638,
+      235298,
+      235321,
+      235278,
+      3840,
+      1245,
+      108,
+      235248,
+      235248,
+      235248,
+      1618,
+      589,
+      3853,
+      235265,
+      818,
+      1101,
+      2863,
+      235298,
+      235321,
+      1685,
+      108,
+      235248,
+      235248,
+      235248,
+      2203,
+      54519,
+      235278,
+      1869,
+      235275,
+      649,
+      235248,
+      235321,
+      109,
+      1698,
+      19638,
+      235298,
+      235315,
+      235278,
+      3840,
+      1245,
+      108,
+      235248,
+      235248,
+      235248,
+      1618,
+      589,
+      3853,
+      235265,
+      818,
+      1101,
+      2863,
+      235298,
+      235315,
+      1685,
+      108,
+      235248,
+      235248,
+      235248,
+      2203,
+      54519,
+      235278,
+      1869,
+      235275,
+      649,
+      235248,
+      235315,
+      109,
+      1698,
+      19638,
+      235298,
+      235274,
+      235276,
+      235278,
+      3840,
+      1245,
+      108,
+      235248,
+      235248,
+      235248,
+      1
+     ],
+     "markers": [
+      12,
+      22
+     ]
+    }
+   },
+   "answers": {
+    "onnx": {
+     "handlers": {
+      "type": "noul",
+      "noul": 0.2091,
+      "confidence": 0.7909,
+      "action": {
+       "act_probability": 1.0
+      }
+     }
+    },
+    "torch": {
+     "handlers": {
+      "type": "noul",
+      "noul": 0.2091,
+      "confidence": 0.7909,
+      "answer_confidence": 0.7909,
+      "action": {
+       "act_probability": 1.0
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "list_state_truncated_left",
+   "state": [
+    {
+     "role": "user",
+     "text": "message number 0 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 1 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 2 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 3 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 4 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 5 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 6 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 7 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 8 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 9 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 10 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 11 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 12 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 13 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 14 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 15 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 16 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 17 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 18 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 19 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 20 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 21 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 22 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 23 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 24 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 25 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 26 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 27 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 28 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 29 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 30 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 31 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 32 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 33 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 34 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 35 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 36 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 37 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 38 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 39 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 40 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 41 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 42 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 43 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 44 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 45 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 46 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 47 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 48 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 49 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 50 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 51 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 52 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 53 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 54 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 55 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 56 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 57 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 58 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 59 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 60 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 61 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 62 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 63 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 64 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 65 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 66 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 67 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 68 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 69 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 70 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 71 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 72 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 73 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 74 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 75 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 76 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 77 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 78 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 79 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 80 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 81 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 82 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 83 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 84 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 85 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 86 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 87 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 88 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 89 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 90 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 91 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 92 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 93 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 94 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 95 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 96 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 97 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 98 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 99 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 100 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 101 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 102 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 103 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 104 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 105 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 106 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 107 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 108 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 109 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 110 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 111 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 112 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 113 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 114 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 115 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 116 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 117 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 118 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 119 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 120 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 121 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 122 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 123 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 124 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 125 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 126 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 127 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 128 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 129 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 130 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 131 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 132 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 133 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 134 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 135 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 136 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 137 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 138 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 139 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 140 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 141 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 142 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 143 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 144 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 145 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 146 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 147 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 148 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 149 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 150 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 151 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 152 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 153 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 154 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 155 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 156 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 157 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 158 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 159 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 160 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 161 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 162 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 163 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 164 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 165 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 166 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 167 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 168 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 169 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 170 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 171 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 172 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 173 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 174 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 175 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 176 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 177 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 178 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 179 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 180 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 181 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 182 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 183 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 184 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 185 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 186 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 187 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 188 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 189 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 190 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 191 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 192 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 193 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 194 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 195 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 196 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 197 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 198 about deployment logs"
+    },
+    {
+     "role": "user",
+     "text": "message number 199 about deployment logs"
+    }
+   ],
+   "questions": {
+    "deploy": {
+     "type": "noul",
+     "instructions": "The conversation is about deployments."
+    }
+   },
+   "sequences": {
+    "deploy": {
+     "input_ids": [
+      2,
+      552,
+      6311,
+      2872,
+      235292,
+      714,
+      12836,
+      603,
+      1105,
+      143525,
+      235265,
+      1,
+      4,
+      1566,
+      235292,
+      793,
+      235269,
+      573,
+      6218,
+      1721,
+      780,
+      3385,
+      4,
+      1382,
+      235292,
+      7778,
+      235269,
+      573,
+      6218,
+      12723,
+      1,
+      664,
+      1529,
+      1758,
+      235248,
+      235274,
+      235321,
+      235284,
+      1105,
+      36577,
+      27365,
+      16406,
+      19946,
+      8247,
+      1192,
+      664,
+      1645,
+      824,
+      664,
+      1082,
+      1192,
+      664,
+      1529,
+      1758,
+      235248,
+      235274,
+      235321,
+      235304,
+      1105,
+      36577,
+      27365,
+      16406,
+      19946,
+      8247,
+      1192,
+      664,
+      1645,
+      824,
+      664,
+      1082,
+      1192,
+      664,
+      1529,
+      1758,
+      235248,
+      235274,
+      235321,
+      235310,
+      1105,
+      36577,
+      27365,
+      16406,
+      19946,
+      8247,
+      1192,
+      664,
+      1645,
+      824,
+      664,
+      1082,
+      1192,
+      664,
+      1529,
+      1758,
+      235248,
+      235274,
+      235321,
+      235308,
+      1105,
+      36577,
+      27365,
+      16406,
+      19946,
+      8247,
+      1192,
+      664,
+      1645,
+      824,
+      664,
+      1082,
+      1192,
+      664,
+      1529,
+      1758,
+      235248,
+      235274,
+      235321,
+      235318,
+      1105,
+      36577,
+      27365,
+      16406,
+      19946,
+      8247,
+      1192,
+      664,
+      1645,
+      824,
+      664,
+      1082,
+      1192,
+      664,
+      1529,
+      1758,
+      235248,
+      235274,
+      235321,
+      235324,
+      1105,
+      36577,
+      27365,
+      16406,
+      19946,
+      8247,
+      1192,
+      664,
+      1645,
+      824,
+      664,
+      1082,
+      1192,
+      664,
+      1529,
+      1758,
+      235248,
+      235274,
+      235321,
+      235321,
+      1105,
+      36577,
+      27365,
+      16406,
+      19946,
+      8247,
+      1192,
+      664,
+      1645,
+      824,
+      664,
+      1082,
+      1192,
+      664,
+      1529,
+      1758,
+      235248,
+      235274,
+      235321,
+      235315,
+      1105,
+      36577,
+      27365,
+      16406,
+      19946,
+      8247,
+      1192,
+      664,
+      1645,
+      824,
+      664,
+      1082,
+      1192,
+      664,
+      1529,
+      1758,
+      235248,
+      235274,
+      235315,
+      235276,
+      1105,
+      36577,
+      27365,
+      16406,
+      19946,
+      8247,
+      1192,
+      664,
+      1645,
+      824,
+      664,
+      1082,
+      1192,
+      664,
+      1529,
+      1758,
+      235248,
+      235274,
+      235315,
+      235274,
+      1105,
+      36577,
+      27365,
+      16406,
+      19946,
+      8247,
+      1192,
+      664,
+      1645,
+      824,
+      664,
+      1082,
+      1192,
+      664,
+      1529,
+      1758,
+      235248,
+      235274,
+      235315,
+      235284,
+      1105,
+      36577,
+      27365,
+      16406,
+      19946,
+      8247,
+      1192,
+      664,
+      1645,
+      824,
+      664,
+      1082,
+      1192,
+      664,
+      1529,
+      1758,
+      235248,
+      235274,
+      235315,
+      235304,
+      1105,
+      36577,
+      27365,
+      16406,
+      19946,
+      8247,
+      1192,
+      664,
+      1645,
+      824,
+      664,
+      1082,
+      1192,
+      664,
+      1529,
+      1758,
+      235248,
+      235274,
+      235315,
+      235310,
+      1105,
+      36577,
+      27365,
+      16406,
+      19946,
+      8247,
+      1192,
+      664,
+      1645,
+      824,
+      664,
+      1082,
+      1192,
+      664,
+      1529,
+      1758,
+      235248,
+      235274,
+      235315,
+      235308,
+      1105,
+      36577,
+      27365,
+      16406,
+      19946,
+      8247,
+      1192,
+      664,
+      1645,
+      824,
+      664,
+      1082,
+      1192,
+      664,
+      1529,
+      1758,
+      235248,
+      235274,
+      235315,
+      235318,
+      1105,
+      36577,
+      27365,
+      16406,
+      19946,
+      8247,
+      1192,
+      664,
+      1645,
+      824,
+      664,
+      1082,
+      1192,
+      664,
+      1529,
+      1758,
+      235248,
+      235274,
+      235315,
+      235324,
+      1105,
+      36577,
+      27365,
+      16406,
+      19946,
+      8247,
+      1192,
+      664,
+      1645,
+      824,
+      664,
+      1082,
+      1192,
+      664,
+      1529,
+      1758,
+      235248,
+      235274,
+      235315,
+      235321,
+      1105,
+      36577,
+      27365,
+      16406,
+      19946,
+      8247,
+      1192,
+      664,
+      1645,
+      824,
+      664,
+      1082,
+      1192,
+      664,
+      1529,
+      1758,
+      235248,
+      235274,
+      235315,
+      235315,
+      1105,
+      36577,
+      27365,
+      235281,
+      12765,
+      1
+     ],
+     "markers": [
+      12,
+      22
+     ]
+    }
+   },
+   "answers": {
+    "onnx": {
+     "deploy": {
+      "type": "noul",
+      "noul": 0.419,
+      "confidence": 0.581,
+      "action": {
+       "act_probability": 1.0
+      }
+     }
+    },
+    "torch": {
+     "deploy": {
+      "type": "noul",
+      "noul": 0.419,
+      "confidence": 0.581,
+      "answer_confidence": 0.581,
+      "action": {
+       "act_probability": 1.0
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "dict_state",
+   "state": {
+    "path": "src/billing/tax.py",
+    "symbol": "compute_vat",
+    "lines": [
+     10,
+     42
+    ],
+    "note": "año ñandú"
+   },
+   "questions": {
+    "tax": {
+     "type": "noul",
+     "instructions": "This symbol computes taxes."
+    }
+   },
+   "sequences": {
+    "tax": {
+     "input_ids": [
+      2,
+      552,
+      6311,
+      2872,
+      235292,
+      1417,
+      10159,
+      130051,
+      15022,
+      235265,
+      1,
+      4,
+      1566,
+      235292,
+      793,
+      235269,
+      573,
+      6218,
+      1721,
+      780,
+      3385,
+      4,
+      1382,
+      235292,
+      7778,
+      235269,
+      573,
+      6218,
+      12723,
+      1,
+      19946,
+      2222,
+      1192,
+      664,
+      5379,
+      235283,
+      71151,
+      235283,
+      16334,
+      235265,
+      2158,
+      824,
+      664,
+      8759,
+      1192,
+      664,
+      32331,
+      235298,
+      7361,
+      824,
+      664,
+      5448,
+      1192,
+      892,
+      235274,
+      235276,
+      235269,
+      235248,
+      235310,
+      235284,
+      1308,
+      664,
+      10076,
+      1192,
+      664,
+      92100,
+      89003,
+      639,
+      235451,
+      12990,
+      1
+     ],
+     "markers": [
+      11,
+      21
+     ]
+    }
+   },
+   "answers": {
+    "onnx": {
+     "tax": {
+      "type": "noul",
+      "noul": 0.6986,
+      "confidence": 0.6986,
+      "action": {
+       "act_probability": 1.0
+      }
+     }
+    },
+    "torch": {
+     "tax": {
+      "type": "noul",
+      "noul": 0.6986,
+      "confidence": 0.6986,
+      "answer_confidence": 0.6986,
+      "action": {
+       "act_probability": 1.0
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "option_budget_overflow",
+   "state": "export default function App() { return <Layout /> }",
+   "questions": {
+    "area": {
+     "type": "choice",
+     "instructions": "Which area does this belong to?",
+     "criteria": {
+      "area_0": "a very long description of a product area a very long description of a product area a very long description of a product area a very long description of a product area a very long description of a product area a very long description of a product area ",
+      "area_1": "a very long description of a product area a very long description of a product area a very long description of a product area a very long description of a product area a very long description of a product area a very long description of a product area ",
+      "area_2": "a very long description of a product area a very long description of a product area a very long description of a product area a very long description of a product area a very long description of a product area a very long description of a product area ",
+      "area_3": "a very long description of a product area a very long description of a product area a very long description of a product area a very long description of a product area a very long description of a product area a very long description of a product area ",
+      "area_4": "a very long description of a product area a very long description of a product area a very long description of a product area a very long description of a product area a very long description of a product area a very long description of a product area ",
+      "area_5": "a very long description of a product area a very long description of a product area a very long description of a product area a very long description of a product area a very long description of a product area a very long description of a product area ",
+      "area_6": "a very long description of a product area a very long description of a product area a very long description of a product area a very long description of a product area a very long description of a product area a very long description of a product area ",
+      "area_7": "a very long description of a product area a very long description of a product area a very long description of a product area a very long description of a product area a very long description of a product area a very long description of a product area ",
+      "area_8": "a very long description of a product area a very long description of a product area a very long description of a product area a very long description of a product area a very long description of a product area a very long description of a product area "
+     }
+    }
+   },
+   "sequences": {
+    "area": {
+     "input_ids": [
+      2,
+      6241,
+      2872,
+      235292,
+      12236,
+      2713,
+      1721,
+      736,
+      8070,
+      577,
+      235336,
+      1,
+      4,
+      2713,
+      235298,
+      235276,
+      235292,
+      476,
+      1508,
+      1497,
+      5966,
+      576,
+      476,
+      3225,
+      4,
+      2713,
+      235298,
+      235274,
+      235292,
+      476,
+      1508,
+      1497,
+      5966,
+      576,
+      476,
+      3225,
+      4,
+      2713,
+      235298,
+      235284,
+      235292,
+      476,
+      1508,
+      1497,
+      5966,
+      576,
+      476,
+      3225,
+      4,
+      2713,
+      235298,
+      235304,
+      235292,
+      476,
+      1508,
+      1497,
+      5966,
+      576,
+      476,
+      3225,
+      4,
+      2713,
+      235298,
+      235310,
+      235292,
+      476,
+      1508,
+      1497,
+      5966,
+      576,
+      476,
+      3225,
+      4,
+      2713,
+      235298,
+      235308,
+      235292,
+      476,
+      1508,
+      1497,
+      5966,
+      576,
+      476,
+      3225,
+      4,
+      2713,
+      235298,
+      235318,
+      235292,
+      476,
+      1508,
+      1497,
+      5966,
+      576,
+      476,
+      3225,
+      4,
+      2713,
+      235298,
+      235324,
+      235292,
+      476,
+      1508,
+      1497,
+      5966,
+      576,
+      476,
+      3225,
+      4,
+      2713,
+      235298,
+      235321,
+      235292,
+      476,
+      1508,
+      1497,
+      5966,
+      576,
+      476,
+      3225,
+      1,
+      13576,
+      3097,
+      1411,
+      2044,
+      645,
+      612,
+      2203,
+      968,
+      3643,
+      4224,
+      1117,
+      1
+     ],
+     "markers": [
+      12,
+      24,
+      36,
+      48,
+      60,
+      72,
+      84,
+      96,
+      108
+     ]
+    }
+   },
+   "answers": {
+    "onnx": {
+     "area": {
+      "type": "choice",
+      "choice": "area_0",
+      "probabilities": {
+       "area_0": 0.1884,
+       "area_1": 0.181,
+       "area_2": 0.1121,
+       "area_3": 0.0985,
+       "area_4": 0.0904,
+       "area_5": 0.0804,
+       "area_6": 0.0848,
+       "area_7": 0.0829,
+       "area_8": 0.0815
+      },
+      "confidence": 0.0272,
+      "action": {
+       "act_probability": 1.0
+      }
+     }
+    },
+    "torch": {
+     "area": {
+      "type": "choice",
+      "choice": "area_0",
+      "probabilities": {
+       "area_0": 0.1884,
+       "area_1": 0.181,
+       "area_2": 0.1121,
+       "area_3": 0.0985,
+       "area_4": 0.0904,
+       "area_5": 0.0804,
+       "area_6": 0.0848,
+       "area_7": 0.0829,
+       "area_8": 0.0815
+      },
+      "confidence": 0.0272,
+      "answer_confidence": 0.1884,
+      "action": {
+       "act_probability": 1.0
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "unicode_and_whitespace",
+   "state": "  // 日本語 コメント 🚀\n\t\tlet café = \"naïve\";\r\n    return café;   \n\n\n",
+   "questions": {
+    "literal": {
+     "type": "noul",
+     "instructions": "The code defines a string variable."
+    }
+   },
+   "sequences": {
+    "literal": {
+     "input_ids": [
+      2,
+      552,
+      6311,
+      2872,
+      235292,
+      714,
+      3409,
+      32550,
+      476,
+      2067,
+      8792,
+      235265,
+      1,
+      4,
+      1566,
+      235292,
+      793,
+      235269,
+      573,
+      6218,
+      1721,
+      780,
+      3385,
+      4,
+      1382,
+      235292,
+      7778,
+      235269,
+      573,
+      6218,
+      12723,
+      1,
+      235248,
+      2723,
+      26867,
+      236333,
+      219309,
+      167340,
+      108,
+      255969,
+      2142,
+      18688,
+      589,
+      664,
+      556,
+      236370,
+      524,
+      6957,
+      108,
+      235248,
+      235248,
+      235248,
+      2203,
+      18688,
+      235289,
+      235248,
+      235248,
+      235248,
+      110,
+      1
+     ],
+     "markers": [
+      13,
+      23
+     ]
+    }
+   },
+   "answers": {
+    "onnx": {
+     "literal": {
+      "type": "noul",
+      "noul": 0.0653,
+      "confidence": 0.9347,
+      "action": {
+       "act_probability": 1.0
+      }
+     }
+    },
+    "torch": {
+     "literal": {
+      "type": "noul",
+      "noul": 0.0653,
+      "confidence": 0.9347,
+      "answer_confidence": 0.9347,
+      "action": {
+       "act_probability": 1.0
+      }
+     }
+    }
+   }
+  },
+  {
+   "name": "empty_state",
+   "state": "",
+   "questions": {
+    "empty": {
+     "type": "noul",
+     "instructions": "There is code here."
+    }
+   },
+   "sequences": {
+    "empty": {
+     "input_ids": [
+      2,
+      552,
+      6311,
+      2872,
+      235292,
+      2456,
+      603,
+      3409,
+      1517,
+      235265,
+      1,
+      4,
+      1566,
+      235292,
+      793,
+      235269,
+      573,
+      6218,
+      1721,
+      780,
+      3385,
+      4,
+      1382,
+      235292,
+      7778,
+      235269,
+      573,
+      6218,
+      12723,
+      1,
+      1
+     ],
+     "markers": [
+      11,
+      21
+     ]
+    }
+   },
+   "answers": {
+    "onnx": {
+     "empty": {
+      "type": "noul",
+      "noul": 0.1922,
+      "confidence": 0.8078,
+      "action": {
+       "act_probability": 1.0
+      }
+     }
+    },
+    "torch": {
+     "empty": {
+      "type": "noul",
+      "noul": 0.1922,
+      "confidence": 0.8078,
+      "answer_confidence": 0.8078,
+      "action": {
+       "act_probability": 1.0
+      }
+     }
+    }
+   }
+  }
+ ]
+}

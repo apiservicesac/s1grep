@@ -1,0 +1,33 @@
+# Decisions
+
+Measured on an 8-core desktop CPU (AVX2, no VNNI) with Laya multilingual (mmBERT, 322M parameters).
+
+## Laya is exported with the dynamo exporter
+
+The upstream `scripts/export_onnx.py` traces with TorchScript, which freezes the decision head's reshape at the
+sample length (16 tokens); every longer input fails in ONNX Runtime. `model_export export` uses
+`torch.onnx.export(dynamo=True)` with dynamic batch, sequence and marker axes. The FP32 graph matches PyTorch on
+every fixture to four decimals, including 1024-token inputs.
+
+## FP32, not INT8
+
+- Dynamic INT8 (weights and activations) collapses every answer to ~0.5: mmBERT activations have large outliers,
+  and the quantizer also rewrites the rotary-position MatMul (positions x inverse frequencies).
+- Weight-only INT8 (`MatMulNBits`) keeps answers within 0.04-0.08 but runs no faster than FP32 on AVX2.
+- Weight-only INT4 drifts by up to 0.87.
+
+An INT8 weight-only bundle (MatMulNBits, 8 bits, block 32, accuracy level 4) drifted at most 0.017 on the parity
+fixtures with no flipped decision. On a laptop CPU with AVX-VNNI (Windows) it was still slower than FP32: 224-233 ms versus
+168-170 ms per 128-token fragment. INT8 is dropped.
+
+## Latency budget
+
+On that laptop: 168 ms per 128-token fragment with 6 threads, 148 ms per fragment in batches of 8 with
+10 threads, 359 ms at 256 tokens. On the 8-core desktop: about 90 ms per 128-token fragment with 6-8 threads, 220 ms at 256 tokens and 560 ms at 512. Batching does not
+reduce the per-fragment cost on CPU. A query can afford roughly 25 model decisions, so candidates are short units
+chosen by a cheap prefilter; the model never scans a repository.
+
+## Toolchain
+
+The prebuilt ONNX Runtime linked by `ort` needs glibc 2.38 or newer, so builds run on Debian trixie. Portable
+release binaries are addressed with distribution (milestone 5).

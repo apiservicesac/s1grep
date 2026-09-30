@@ -1,0 +1,21 @@
+[package]
+name = "s1-engine"
+description = "Typed System One decisions (choice, score, noul) for s1grep, running Laya locally through ONNX Runtime"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+ort.workspace = true
+tokenizers.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+ndarray.workspace = true
+thiserror.workspace = true
+
+# On Windows onnxruntime.dll is loaded at runtime, so the binary cross-compiles without MSVC and the same
+# executable works with the CPU, DirectML and OpenVINO builds of ONNX Runtime.
+[target.'cfg(windows)'.dependencies]
+ort = { workspace = true, features = ["load-dynamic", "directml", "openvino"] }

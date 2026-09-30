@@ -1,0 +1,27 @@
+[workspace]
+resolver = "3"
+members = ["crates/s1-engine", "crates/s1-index", "crates/s1grep"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0"
+repository = "https://github.com/apiservicesac/s1grep"
+authors = ["API SERVICE SAC"]
+
+[workspace.dependencies]
+# api-24: the DirectML and OpenVINO builds of ONNX Runtime for Windows stop at 1.24.
+ort = { version = "=2.0.0-rc.13", default-features = false, features = ["std", "ndarray", "download-binaries", "copy-dylibs", "tls-native", "api-24"] }
+tokenizers = { version = "0.23", default-features = false, features = ["onig"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+ndarray = "0.17"
+thiserror = "2"
+clap = { version = "4.6", features = ["derive", "env"] }
+anyhow = "1"
+s1-engine = { path = "crates/s1-engine" }
+s1-index = { path = "crates/s1-index" }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1

@@ -1,0 +1,31 @@
+[project]
+name = "model-export"
+version = "0.1.0"
+description = "Development tool: exports Laya checkpoints to ONNX and records reference outputs for s1grep parity tests"
+license = "Apache-2.0"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "laya==0.3.20",
+    "torch>=2.6,<2.9",
+    "transformers>=5.17,<6",
+    "onnx>=1.17",
+    "onnxscript>=0.3",
+    "onnxruntime>=1.20",
+    "huggingface-hub>=0.30",
+    "sentence-transformers>=6.1.0",
+]
+
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["model_export"]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
