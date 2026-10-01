@@ -57,14 +57,6 @@ impl LayaEngine {
         })
     }
 
-    pub fn tokenizer(&self) -> &LayaTokenizer {
-        &self.tokenizer
-    }
-
-    pub fn sequence_builder(&self) -> &SequenceBuilder {
-        &self.builder
-    }
-
     /// Encodes every question about `state`, tokenizing the state once.
     pub fn encode(&self, state: &Value, questions: &QuestionSet) -> Result<Vec<EncodedQuestion>, EngineError> {
         let state_ids = self
@@ -82,24 +74,8 @@ impl LayaEngine {
 
     /// Answers every question about one state in a single forward pass.
     pub fn decide(&mut self, state: &Value, questions: &QuestionSet) -> Result<Decision, EngineError> {
-        if questions.is_empty() {
-            return Ok(Decision::default());
-        }
-        let encoded = self.encode(state, questions)?;
-        let output = self.session.run(&encoded, self.tokenizer.pad_id)?;
-        let mut answers = Vec::with_capacity(questions.len());
-        for (row, (id, question)) in questions.iter().enumerate() {
-            let option_count = encoded[row].markers.len();
-            let temperature = self.temperatures.for_question(question.kind, option_count);
-            let probabilities = Self::softmax(&output.logits[row][..option_count], temperature);
-            let act_probability = Self::softmax(&output.act_logits[row], 1.0)
-                .first()
-                .copied()
-                .unwrap_or_default();
-            answers.push((id.to_string(), Answer::new(question, probabilities, act_probability)));
-        }
-        let input_tokens = encoded.iter().map(|item| item.input_ids.len()).sum();
-        Ok(Decision { answers, input_tokens })
+        let mut decisions = self.decide_batch(std::slice::from_ref(state), questions)?;
+        Ok(decisions.remove(0))
     }
 
     /// Answers the same questions about several states in one forward pass (used to judge candidates together).

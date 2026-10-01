@@ -1,0 +1,18 @@
+[package]
+name = "s1-lab"
+description = "Development tools for s1grep: the exam, benchmarks and model checks. Not shipped."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish = false
+
+[dependencies]
+s1grep = { path = "../s1grep" }
+s1-engine.workspace = true
+s1-index.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+clap.workspace = true
+anyhow.workspace = true

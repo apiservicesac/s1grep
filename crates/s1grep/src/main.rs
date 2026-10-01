@@ -1,41 +1,21 @@
-mod backend;
-mod commands;
-mod hub;
-mod indexer;
-mod model_locator;
-mod models;
-mod progress;
-mod project;
-mod report;
-mod runtime_library;
-mod searcher;
-mod server;
-mod service;
-mod settings;
-
 use clap::{Parser, Subcommand};
 
-use commands::bench::BenchCommand;
-use commands::decide::DecideCommand;
-use commands::doctor::DoctorCommand;
-use commands::eval::EvalCommand;
-use commands::index::IndexCommand;
-use commands::mcp::McpCommand;
-use commands::rerank_eval::RerankEvalCommand;
-use commands::search::SearchArgs;
-use commands::serve::ServeCommand;
-use commands::setup::SetupCommand;
-use commands::skill::SkillCommand;
-use commands::status::StatusCommand;
-use commands::stop::StopCommand;
-use commands::units::UnitsCommand;
-use runtime_library::RuntimeLibrary;
+use s1grep::commands::doctor::DoctorCommand;
+use s1grep::commands::index::IndexCommand;
+use s1grep::commands::mcp::McpCommand;
+use s1grep::commands::search::SearchArgs;
+use s1grep::commands::serve::ServeCommand;
+use s1grep::commands::setup::SetupCommand;
+use s1grep::commands::skill::SkillCommand;
+use s1grep::commands::status::StatusCommand;
+use s1grep::commands::stop::StopCommand;
+use s1grep::runtime_library::RuntimeLibrary;
 
 #[derive(Parser)]
 #[command(
     name = "s1grep",
     version,
-    about = "Find code by asking what it does, in English or Spanish. Everything runs on your machine.",
+    about = "Find code by asking what it does, in English or Spanish. Everything runs on your machine.\nReads Python repositories only, for now.",
     override_usage = "s1grep \"<what the code does>\" [PATH] [OPTIONS]\n       s1grep <COMMAND>",
     after_help = "Examples:\n  s1grep setup\n  s1grep \"where do we retry a failed payment\" ~/work/shop\n  s1grep \"dónde se valida el token\" . -n 10 --json",
     args_conflicts_with_subcommands = true,
@@ -68,16 +48,6 @@ enum Command {
     Index(IndexCommand),
     #[command(hide = true)]
     Search(SearchArgs),
-    #[command(hide = true)]
-    Eval(EvalCommand),
-    #[command(hide = true)]
-    RerankEval(RerankEvalCommand),
-    #[command(hide = true)]
-    Units(UnitsCommand),
-    #[command(hide = true)]
-    Bench(BenchCommand),
-    #[command(hide = true)]
-    Decide(DecideCommand),
 }
 
 fn main() -> anyhow::Result<()> {
@@ -94,10 +64,5 @@ fn main() -> anyhow::Result<()> {
         Some(Command::Skill(command)) => command.run(),
         Some(Command::Index(command)) => command.run(),
         Some(Command::Search(command)) => command.run(),
-        Some(Command::Eval(command)) => command.run(),
-        Some(Command::RerankEval(command)) => command.run(),
-        Some(Command::Units(command)) => command.run(),
-        Some(Command::Bench(command)) => command.run(),
-        Some(Command::Decide(command)) => command.run(),
     }
 }

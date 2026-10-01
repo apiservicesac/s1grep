@@ -39,7 +39,7 @@ impl Units {
         let digits = value.to_string();
         let mut grouped = String::new();
         for (index, digit) in digits.chars().enumerate() {
-            if index > 0 && (digits.len() - index) % 3 == 0 {
+            if index > 0 && (digits.len() - index).is_multiple_of(3) {
                 grouped.push(',');
             }
             grouped.push(digit);
@@ -108,7 +108,11 @@ impl ProgressDisplay {
                 }
             }
             IndexEvent::Embedding { done, total, seconds } => {
-                let rate = if *seconds > 0.5 { *done as f64 / seconds } else { 0.0 };
+                let rate = if *seconds > DisplaySettings::RATE_AFTER_SECONDS {
+                    *done as f64 / seconds
+                } else {
+                    0.0
+                };
                 let left = if rate > 0.0 && done < total {
                     format!(
                         "· {rate:.1}/s · ~{} left",
@@ -226,6 +230,12 @@ impl ProgressDisplay {
             eprintln!("{text}");
             self.last_plain_line = Some(now);
         }
+    }
+}
+
+impl Default for ProgressDisplay {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

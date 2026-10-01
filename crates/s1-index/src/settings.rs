@@ -19,3 +19,15 @@ impl IndexLimits {
     /// How long a write waits for another process holding the index database.
     pub const BUSY_TIMEOUT: Duration = Duration::from_secs(30);
 }
+
+/// Fusion of the retriever's order with the judge's: (judge share, rank smoothing), chosen on the dev split of the exam
+/// for s1-code v3, per retriever and number of candidates judged.
+pub struct FusionTable;
+
+impl FusionTable {
+    pub const QWEN3_UP_TO_FIVE: (f64, f64) = (0.45, 5.0);
+    pub const QWEN3_MORE: (f64, f64) = (0.35, 30.0);
+    pub const UP_TO_FIVE: (f64, f64) = (0.55, 5.0);
+    pub const UP_TO_TEN: (f64, f64) = (0.65, 1.0);
+    pub const MORE: (f64, f64) = (0.75, 10.0);
+}

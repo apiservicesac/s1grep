@@ -1,4 +1,4 @@
-# Decisions
+# 0000. Engine measurements
 
 Measured on an 8-core desktop CPU (AVX2, no VNNI) with Laya multilingual (mmBERT, 322M parameters).
 
@@ -29,7 +29,7 @@ chosen by a cheap prefilter; the model never scans a repository.
 
 ## The judge reads 5 candidates, one at a time, at 384 tokens
 
-Measured with `s1grep rerank-eval` on the 100-question development exam (granite candidates, 8 threads, the 8-core
+Measured with `s1-lab rerank-eval` on the 100-question development exam (granite candidates, 8 threads, the 8-core
 desktop). Top-1 after fusion; granite alone gets 66.
 
 | Tokens read | Candidates | Judge time per search | Top-1 |
@@ -48,7 +48,7 @@ desktop). Top-1 after fusion; granite alone gets 66.
 
 ## v0.1 on the held-out test
 
-`s1grep eval` with the shipped settings (granite, the judge reads 5 candidates) on the held-out test of 201 real
+`s1-lab eval` with the shipped settings (granite, the judge reads 5 candidates) on the held-out test of 201 real
 searches, whose settings were chosen on the development exam only:
 
 | | English (103) | Spanish (98) | All (201) |

@@ -3,6 +3,8 @@ use std::path::PathBuf;
 use anyhow::{Context, bail};
 use clap::{Args, ValueEnum};
 
+use crate::settings::{CacheSettings, ModelSettings};
+
 /// Which embedding model finds the candidates.
 #[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq)]
 pub enum Retriever {
@@ -16,7 +18,7 @@ pub enum Retriever {
 impl Retriever {
     pub fn bundle_name(self) -> &'static str {
         match self {
-            Self::Granite => "granite-278m-onnx",
+            Self::Granite => ModelSettings::RETRIEVER_BUNDLE,
             Self::Qwen3 => "qwen3-embedding-0.6b-onnx",
         }
     }
@@ -61,7 +63,7 @@ impl ModelDirectory {
     pub fn resolved(&self) -> anyhow::Result<PathBuf> {
         match &self.folder {
             Some(folder) => Ok(folder.clone()),
-            None => Ok(CacheDirectory::root()?.join("models")),
+            None => Ok(CacheDirectory::root()?.join(CacheSettings::MODELS)),
         }
     }
 
@@ -84,36 +86,45 @@ pub struct CacheDirectory;
 impl CacheDirectory {
     pub fn root() -> anyhow::Result<PathBuf> {
         if let Some(cache) = std::env::var_os("XDG_CACHE_HOME") {
-            return Ok(PathBuf::from(cache).join("s1grep"));
+            return Ok(PathBuf::from(cache).join(CacheSettings::APPLICATION_FOLDER));
         }
         if let Some(local) = std::env::var_os("LOCALAPPDATA") {
-            return Ok(PathBuf::from(local).join("s1grep"));
+            return Ok(PathBuf::from(local).join(CacheSettings::APPLICATION_FOLDER));
         }
         let home = std::env::var_os("HOME").context("HOME is not set")?;
-        Ok(PathBuf::from(home).join(".cache").join("s1grep"))
+        Ok(PathBuf::from(home)
+            .join(".cache")
+            .join(CacheSettings::APPLICATION_FOLDER))
     }
 
     /// One index per project, named after a hash of its absolute path, so indexing never writes into the project.
     pub fn project_index(root: &std::path::Path) -> anyhow::Result<PathBuf> {
-        let key = s1_index::content_hash(root.to_string_lossy().as_bytes());
-        Ok(Self::root()?.join("projects").join(format!("{}.sqlite", &key[..16])))
+        let key = s1_index::ContentFingerprint::of(root.to_string_lossy().as_bytes());
+        Ok(Self::root()?.join(CacheSettings::PROJECTS).join(format!(
+            "{}.{}",
+            &key[..CacheSettings::PROJECT_KEY_LENGTH],
+            CacheSettings::PROJECT_EXTENSION
+        )))
     }
 
     /// Vectors shared by every project, keyed by the content they were computed from.
     pub fn vectors() -> anyhow::Result<PathBuf> {
-        Ok(Self::root()?.join("vectors.sqlite"))
+        Ok(Self::root()?.join(CacheSettings::VECTORS))
     }
 
     /// Every project index in the cache.
     pub fn project_indexes() -> anyhow::Result<Vec<PathBuf>> {
-        let folder = Self::root()?.join("projects");
+        let folder = Self::root()?.join(CacheSettings::PROJECTS);
         let Ok(entries) = std::fs::read_dir(&folder) else {
             return Ok(Vec::new());
         };
         let mut paths: Vec<PathBuf> = entries
             .filter_map(Result::ok)
             .map(|entry| entry.path())
-            .filter(|path| path.extension().is_some_and(|extension| extension == "sqlite"))
+            .filter(|path| {
+                path.extension()
+                    .is_some_and(|extension| extension == CacheSettings::PROJECT_EXTENSION)
+            })
             .collect();
         paths.sort();
         Ok(paths)

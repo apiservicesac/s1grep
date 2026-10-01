@@ -47,6 +47,15 @@ impl Coverage {
     }
 }
 
+/// The SQL condition "this unit's path is the folder bound to parameter `?N` or inside it", written once.
+struct ScopeFilter;
+
+impl ScopeFilter {
+    fn matches(parameter: usize) -> String {
+        format!("(path = ?{parameter} OR substr(path, 1, length(?{parameter}) + 1) = ?{parameter} || '/')")
+    }
+}
+
 /// One project's index: its files and code units, plus a vector cache shared by every project. Vectors are keyed by
 /// a fingerprint of the embedded text, so a framework copied into many projects is embedded once.
 pub struct IndexStore {
@@ -110,23 +119,6 @@ impl IndexStore {
     pub fn commit_batch(&self) -> Result<(), IndexError> {
         self.connection.execute_batch("COMMIT")?;
         Ok(())
-    }
-
-    pub fn file_state(&self, path: &str) -> Result<Option<FileState>, IndexError> {
-        Ok(self
-            .connection
-            .query_row(
-                "SELECT hash, size, modified FROM files WHERE path = ?1",
-                [path],
-                |row| {
-                    Ok(FileState {
-                        hash: row.get(0)?,
-                        size: row.get::<_, i64>(1)? as u64,
-                        modified: row.get(2)?,
-                    })
-                },
-            )
-            .optional()?)
     }
 
     /// What the index knows about every file, in one query (looking files up one by one is slow on large projects).
@@ -199,13 +191,14 @@ impl IndexStore {
 
     /// Units without a vector for `model`, those under `scope` first, one per distinct content.
     pub fn pending_units(&self, model: &str, scope: Option<&str>, limit: usize) -> Result<Vec<StoredUnit>, IndexError> {
-        let mut statement = self.connection.prepare(
+        let mut statement = self.connection.prepare(&format!(
             "SELECT MIN(id), path, name, start_line, end_line, source, content FROM units
              WHERE content NOT IN (SELECT content FROM shared.vectors WHERE model = ?1)
              GROUP BY content
-             ORDER BY (?2 IS NOT NULL AND (path = ?2 OR substr(path, 1, length(?2) + 1) = ?2 || '/')) DESC, MIN(id)
+             ORDER BY (?2 IS NOT NULL AND {}) DESC, MIN(id)
              LIMIT ?3",
-        )?;
+            ScopeFilter::matches(2)
+        ))?;
         let rows = statement.query_map(params![model, scope, limit as i64], Self::stored)?;
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
     }
@@ -213,9 +206,12 @@ impl IndexStore {
     /// Distinct contents under `scope` that still need a vector for `model`.
     pub fn pending_count(&self, model: &str, scope: Option<&str>) -> Result<usize, IndexError> {
         let count: i64 = self.connection.query_row(
-            "SELECT COUNT(DISTINCT content) FROM units
-             WHERE (?2 IS NULL OR path = ?2 OR substr(path, 1, length(?2) + 1) = ?2 || '/')
+            &format!(
+                "SELECT COUNT(DISTINCT content) FROM units
+             WHERE (?2 IS NULL OR {})
              AND content NOT IN (SELECT content FROM shared.vectors WHERE model = ?1)",
+                ScopeFilter::matches(2)
+            ),
             params![model, scope],
             |row| row.get(0),
         )?;
@@ -235,24 +231,6 @@ impl IndexStore {
         Ok(())
     }
 
-    /// Units under `scope` (the whole project when `None`) that have a vector for `model`.
-    pub fn units_with_vectors(
-        &self,
-        model: &str,
-        scope: Option<&str>,
-    ) -> Result<Vec<(StoredUnit, Vec<f32>)>, IndexError> {
-        let mut statement = self.connection.prepare(
-            "SELECT units.id, path, name, start_line, end_line, source, units.content, vector FROM units
-             JOIN shared.vectors AS stored ON stored.content = units.content AND stored.model = ?1
-             WHERE ?2 IS NULL OR path = ?2 OR substr(path, 1, length(?2) + 1) = ?2 || '/'
-             ORDER BY units.id",
-        )?;
-        let rows = statement.query_map(params![model, scope], |row| {
-            Ok((Self::stored(row)?, Self::vector(&row.get::<_, Vec<u8>>(7)?)))
-        })?;
-        Ok(rows.collect::<Result<Vec<_>, _>>()?)
-    }
-
     /// Units under `scope` with their best vector: the whole-source one from `model`, else the outline one from
     /// `outline_model`. Units with neither are left out.
     pub fn searchable_units(
@@ -261,15 +239,16 @@ impl IndexStore {
         outline_model: &str,
         scope: Option<&str>,
     ) -> Result<Vec<SearchableUnit>, IndexError> {
-        let mut statement = self.connection.prepare(
+        let mut statement = self.connection.prepare(&format!(
             "SELECT units.id, path, name, start_line, end_line, source, units.content,
                     COALESCE(whole.vector, outline.vector), whole.vector IS NOT NULL FROM units
              LEFT JOIN shared.vectors AS whole ON whole.content = units.content AND whole.model = ?1
              LEFT JOIN shared.vectors AS outline ON outline.content = units.content AND outline.model = ?2
              WHERE (whole.vector IS NOT NULL OR outline.vector IS NOT NULL)
-             AND (?3 IS NULL OR path = ?3 OR substr(path, 1, length(?3) + 1) = ?3 || '/')
+             AND (?3 IS NULL OR {})
              ORDER BY units.id",
-        )?;
+            ScopeFilter::matches(3)
+        ))?;
         let rows = statement.query_map(params![model, outline_model, scope], |row| {
             Ok(SearchableUnit {
                 stored: Self::stored(row)?,
@@ -280,21 +259,14 @@ impl IndexStore {
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
     }
 
-    /// Units under `scope`, with or without vectors, for searches that do not need them.
-    pub fn units(&self, scope: Option<&str>) -> Result<Vec<StoredUnit>, IndexError> {
-        let mut statement = self.connection.prepare(
-            "SELECT id, path, name, start_line, end_line, source, content FROM units
-             WHERE ?1 IS NULL OR path = ?1 OR substr(path, 1, length(?1) + 1) = ?1 || '/' ORDER BY id",
-        )?;
-        let rows = statement.query_map(params![scope], Self::stored)?;
-        Ok(rows.collect::<Result<Vec<_>, _>>()?)
-    }
-
     pub fn coverage(&self, model: &str, scope: Option<&str>) -> Result<Coverage, IndexError> {
         let (units, embedded): (i64, i64) = self.connection.query_row(
-            "SELECT COUNT(*), COUNT(stored.content) FROM units
-             LEFT JOIN shared.vectors AS stored ON stored.content = units.content AND stored.model = ?1
-             WHERE ?2 IS NULL OR path = ?2 OR substr(path, 1, length(?2) + 1) = ?2 || '/'",
+            &format!(
+                "SELECT COUNT(*), COUNT(stored.content) FROM units
+                 LEFT JOIN shared.vectors AS stored ON stored.content = units.content AND stored.model = ?1
+                 WHERE ?2 IS NULL OR {}",
+                ScopeFilter::matches(2)
+            ),
             params![model, scope],
             |row| Ok((row.get(0)?, row.get(1)?)),
         )?;
@@ -304,16 +276,12 @@ impl IndexStore {
         })
     }
 
-    pub fn file_count(&self) -> Result<usize, IndexError> {
-        Ok(self
-            .connection
-            .query_row("SELECT COUNT(*) FROM files", [], |row| row.get::<_, i64>(0))? as usize)
-    }
-
     fn vector(bytes: &[u8]) -> Vec<f32> {
         bytes
-            .chunks_exact(4)
-            .map(|chunk| f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .map(|chunk| f32::from_le_bytes(*chunk))
             .collect()
     }
 

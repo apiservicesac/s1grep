@@ -3,6 +3,9 @@ use std::path::PathBuf;
 use anyhow::{Context, bail};
 use clap::Args;
 use s1_engine::ModelBundle;
+use s1grep::models::CacheDirectory;
+
+use crate::settings::BenchSettings;
 
 /// Where the model bundle lives: `--model`, `S1GREP_MODEL_DIR`, or the user cache.
 #[derive(Args, Clone)]
@@ -16,9 +19,7 @@ impl ModelLocator {
     pub fn open(&self) -> anyhow::Result<ModelBundle> {
         let directory = match &self.directory {
             Some(directory) => directory.clone(),
-            None => Self::cache_directory()?
-                .join("models")
-                .join(crate::settings::BenchSettings::MODEL),
+            None => CacheDirectory::root()?.join("models").join(BenchSettings::MODEL),
         };
         if !directory.is_dir() {
             bail!(
@@ -27,13 +28,5 @@ impl ModelLocator {
             );
         }
         ModelBundle::open(&directory).with_context(|| format!("opening model bundle {}", directory.display()))
-    }
-
-    fn cache_directory() -> anyhow::Result<PathBuf> {
-        if let Some(cache) = std::env::var_os("XDG_CACHE_HOME") {
-            return Ok(PathBuf::from(cache).join("s1grep"));
-        }
-        let home = std::env::var_os("HOME").context("HOME is not set")?;
-        Ok(PathBuf::from(home).join(".cache").join("s1grep"))
     }
 }

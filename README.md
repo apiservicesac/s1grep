@@ -11,8 +11,11 @@ $ cd ~/work/shop && s1grep "where do we retry a failed payment"
     … 6 more lines
 ```
 
-Status: v0.1, early. Python repositories only; Linux (x86-64, glibc 2.38 or newer: Ubuntu 24.04, Debian 13) and
-Windows (x86-64).
+> **Python only, for now.** s1grep reads `.py` files and skips everything else, so a JavaScript, TypeScript, Go or
+> Java repository returns no results. Its judge model was trained on Python code; how it does on other languages is
+> measured under [Languages](#languages), and support for more languages is planned for 0.4.
+
+Status: early (0.2). Linux (x86-64, glibc 2.38 or newer: Ubuntu 24.04, Debian 13) and Windows (x86-64).
 
 ## Install
 
@@ -64,7 +67,27 @@ The retriever is granite-embedding-278m-multilingual, and the judge reads the fi
 
 On a held-out test of 201 real searches (103 in English, 98 in Spanish), s1grep puts the right function first 168
 times against 145 for the embeddings alone, with a median search of 1.5 s on an 8-core CPU
-(see [docs/decisions.md](docs/decisions.md)).
+(see [docs/decisions](docs/decisions/0000-engine-measurements.md)).
+
+### Languages
+
+Today s1grep indexes **Python only**, and the judge, s1-code v3, was **trained on Python only**. The embedding model
+is not language specific, so other languages are a matter of extraction and of a judge trained on them.
+
+To see how far the Python-trained judge carries over, it was measured on 100 CodeSearchNet queries per language (25
+embedding candidates from the same repository, the judge reads 10). Top-1 out of 100:
+
+| Language | Embeddings alone | With the judge | Effect of the judge |
+|---|---|---|---|
+| Python | 91 | 95 | helps |
+| Java | 58 | 68 | helps |
+| PHP | 79 | 82 | helps a little |
+| Ruby | 53 | 54 | neutral |
+| JavaScript | 67 | 59 | hurts |
+| Go | 47 | 41 | hurts |
+
+With 100 queries each difference carries about ±9 points. When other languages are indexed (planned for 0.4), the judge
+will be switched off for languages where it hurts until a judge trained on several languages (s1-code v4) replaces it.
 
 ## Usage
 
@@ -145,19 +168,24 @@ Both can also be rebuilt from the original checkpoints with `tools/model-export`
 |---|---|
 | `crates/s1-engine` | Typed questions, Laya sequence encoding, ONNX Runtime sessions, calibrated answers, embedders |
 | `crates/s1-index` | Python function extraction, repository walking, the SQLite index, vector ranking and rank fusion |
-| `crates/s1grep` | Command line, background server and MCP server; `eval`, `rerank-eval`, `units`, `bench` and `decide` are hidden development commands |
+| `crates/s1grep` | The product as a library and the `s1grep` binary: search service, background process, MCP server, model installer |
+| `crates/s1-lab` | Development only, never released: the exam, judge reranking, benchmarks |
 | `tools/model-export` | Development only: exports models to ONNX and records parity fixtures from Python |
-| `docs/decisions.md` | Measured decisions (export, precision, latency budget) |
+| `ARCHITECTURE.md` | How s1grep is built and where it is going |
+| `docs/decisions` | Architecture decision records and the engine measurements |
+| `docs/quality.md` | The gates a release passes: exam, benchmarks, tests |
 | `docs/model-cards` | The Hugging Face cards of s1-code v1, v2 and v3 |
 
 ## Development
 
-Everything runs in Docker through `./dev.sh` and `make`; nothing else is installed on the host.
+Everything runs in Docker through `./dev.sh` and `make`; nothing else is installed on the host. See
+[CONTRIBUTING.md](CONTRIBUTING.md) for the code style and the quality gates.
 
 ```sh
 make build          # target/release/s1grep
 make test           # unit tests
 make test-parity    # Rust against the Python reference (needs the models in models/)
+make lint           # clippy, warnings fail
 make fmt            # format the code
 make dist           # Linux and Windows binaries with SHA256SUMS in dist/<version>
 make install        # copy the build into ~/.local/bin

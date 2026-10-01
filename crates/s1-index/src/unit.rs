@@ -50,12 +50,4 @@ impl CodeUnit {
         let source: String = self.source.chars().take(IndexLimits::JUDGE_SOURCE_CHARACTERS).collect();
         format!("{}\n{}\n\n{}", self.path, self.name, source)
     }
-
-    /// The same unit seen under another root, e.g. with the repository folder in front of the path.
-    pub fn with_path_prefix(&self, prefix: &str) -> Self {
-        Self {
-            path: format!("{prefix}/{}", self.path),
-            ..self.clone()
-        }
-    }
 }

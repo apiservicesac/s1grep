@@ -110,7 +110,9 @@ impl SearchResponse {
 /// A project the background process keeps indexing between searches, holding its lock until it is done.
 struct IndexingJob {
     project: Project,
-    _lock: IndexLock,
+    /// Held until the job is done, so no other process indexes the project meanwhile.
+    #[expect(dead_code, reason = "held only to release the lock when the job is dropped")]
+    index_lock: IndexLock,
     /// Outlines of the whole project first, then whole sources.
     pass: Pass,
     /// Functions fetched from the index and not embedded yet; refilled when empty, emptied when the priority changes.
@@ -247,7 +249,7 @@ impl SearchService {
         if let Some(lock) = lock {
             self.jobs.push(IndexingJob {
                 project: project.clone(),
-                _lock: lock,
+                index_lock: lock,
                 pass: Pass::Outline,
                 queue: Vec::new(),
                 started: Instant::now(),
@@ -315,7 +317,7 @@ impl SearchService {
     ) -> anyhow::Result<Project> {
         let project = Project::locate(target)?;
         let mut store = project.open_store()?;
-        let Ok(_lock) = IndexLock::acquire(&project.root)? else {
+        let Ok(index_lock) = IndexLock::acquire(&project.root)? else {
             anyhow::bail!(
                 "another s1grep is indexing {} right now; `s1grep status` shows its progress",
                 project.root.display()
@@ -332,6 +334,7 @@ impl SearchService {
             project.scope.as_deref(),
             progress,
         )?;
+        drop(index_lock);
         Ok(project)
     }
 

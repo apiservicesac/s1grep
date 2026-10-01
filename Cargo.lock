@@ -1528,6 +1528,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "s1-lab"
+version = "0.2.4"
+dependencies = [
+ "anyhow",
+ "clap",
+ "s1-engine",
+ "s1-index",
+ "s1grep",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "s1grep"
 version = "0.2.4"
 dependencies = [

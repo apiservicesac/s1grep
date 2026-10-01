@@ -90,7 +90,9 @@ pub struct SearchServer {
     info: ServerInfo,
     listener: TcpListener,
     idle: Option<Duration>,
-    _lock: File,
+    /// Held while the server runs: a second server cannot start.
+    #[expect(dead_code, reason = "held only to release the lock when the server stops")]
+    server_lock: File,
 }
 
 impl SearchServer {
@@ -112,7 +114,7 @@ impl SearchServer {
             info,
             listener,
             idle,
-            _lock: lock,
+            server_lock: lock,
         })
     }
 

@@ -69,12 +69,12 @@ fmt-check: ## Check formatting without changes
 	$(RUST_ROOT) "rustup component add rustfmt >/dev/null 2>&1 && cargo fmt --all --check"
 	@bash -n install.sh && bash -n update.sh
 
-lint: ## Run clippy
-	./dev.sh cargo clippy --release --workspace --all-targets
+lint: ## Run clippy; any warning fails
+	$(RUST_ROOT) "rustup component add clippy >/dev/null 2>&1 && CARGO_HOME=/p/.cache/cargo cargo clippy --release --workspace --all-targets -- -D warnings; status=\$$?; chown -R $(UID_GID) target .cache; exit \$$status"
 
 check: fmt-check ## Format check
 
-ci: check test ## Full CI pipeline locally
+ci: check lint test ## Full CI pipeline locally
 
 install: build ## Install the Linux binary into ~/.local/bin (INSTALL_DIR=... to change)
 	@mkdir -p $(INSTALL_DIR)

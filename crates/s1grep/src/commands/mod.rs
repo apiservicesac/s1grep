@@ -1,14 +1,9 @@
-pub mod bench;
-pub mod decide;
 pub mod doctor;
-pub mod eval;
 pub mod index;
 pub mod mcp;
-pub mod rerank_eval;
 pub mod search;
 pub mod serve;
 pub mod setup;
 pub mod skill;
 pub mod status;
 pub mod stop;
-pub mod units;

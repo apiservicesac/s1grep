@@ -1,4 +1,4 @@
-use crate::settings::BundleFiles;
+use crate::settings::{BundleFiles, SequenceLimits};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -21,11 +21,11 @@ pub struct DecisionConfig {
 
 impl DecisionConfig {
     fn default_max_len() -> usize {
-        512
+        SequenceLimits::DEFAULT_MAX_LEN
     }
 
     fn default_head_max_len() -> usize {
-        192
+        SequenceLimits::DEFAULT_HEAD_MAX_LEN
     }
 }
 

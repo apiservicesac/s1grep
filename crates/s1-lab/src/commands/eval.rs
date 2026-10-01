@@ -7,11 +7,11 @@ use clap::Args;
 use serde::Deserialize;
 use serde_json::json;
 
-use crate::indexer::{Indexer, Pass};
-use crate::models::{ModelDirectory, Retriever};
-use crate::project::Project;
-use crate::searcher::Searcher;
-use crate::service::FileFilters;
+use s1grep::indexer::{Indexer, Pass};
+use s1grep::models::{ModelDirectory, Retriever};
+use s1grep::project::Project;
+use s1grep::searcher::Searcher;
+use s1grep::service::FileFilters;
 
 /// One exam question, in the format the exam builders use: the answer is `path` (with the repository folder in
 /// front) and `function`, plus any equally valid answers.
@@ -81,6 +81,11 @@ pub struct EvalCommand {
 
 impl EvalCommand {
     pub fn run(self) -> anyhow::Result<()> {
+        if std::env::var_os("XDG_CACHE_HOME").is_none() {
+            bail!(
+                "set XDG_CACHE_HOME to a lab folder: the exam indexes its repositories and must not write to the real cache"
+            );
+        }
         let started = Instant::now();
         let judged = self.judge_top.unwrap_or(self.retriever.default_judged());
         let mut searcher = Searcher::load(&self.models, self.retriever, true, self.threads)?;

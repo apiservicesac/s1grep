@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use clap::Args;
 use s1_index::{PythonExtractor, SourceWalker};
 
-use crate::service::FileFilters;
+use s1grep::service::FileFilters;
 use serde_json::json;
 
 #[derive(Args)]

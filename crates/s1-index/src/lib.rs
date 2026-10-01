@@ -2,6 +2,7 @@
 
 mod error;
 mod extractor;
+mod fingerprint;
 mod ranking;
 mod settings;
 mod store;
@@ -10,13 +11,9 @@ mod walker;
 
 pub use error::IndexError;
 pub use extractor::PythonExtractor;
+pub use fingerprint::ContentFingerprint;
 pub use ranking::{FusionWeights, RankFusion, VectorRanking};
-pub use settings::IndexLimits;
+pub use settings::{FusionTable, IndexLimits};
 pub use store::{Coverage, FileState, IndexStore, SearchableUnit, StoredUnit};
 pub use unit::CodeUnit;
 pub use walker::{SourceFile, SourceWalker, WalkOptions};
-
-/// Content hash used to notice changed files.
-pub fn content_hash(bytes: &[u8]) -> String {
-    blake3::hash(bytes).to_hex().to_string()
-}

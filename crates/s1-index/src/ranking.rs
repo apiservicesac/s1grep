@@ -1,3 +1,5 @@
+use crate::settings::FusionTable;
+
 /// Nearest units to a query vector by cosine similarity (vectors are unit length, so a dot product).
 pub struct VectorRanking;
 
@@ -24,14 +26,14 @@ pub struct FusionWeights {
 }
 
 impl FusionWeights {
-    /// Chosen on the dev split of the exam for s1-code v3 (docs/decisions.md), per retriever and judged count.
+    /// The weights of `FusionTable` for this retriever and judged count.
     pub fn tuned(retriever: &str, judged: usize) -> Self {
         let (judge, smoothing) = match (retriever, judged) {
-            ("qwen3", ..=5) => (0.45, 5.0),
-            ("qwen3", _) => (0.35, 30.0),
-            (_, ..=5) => (0.55, 5.0),
-            (_, ..=10) => (0.65, 1.0),
-            _ => (0.75, 10.0),
+            ("qwen3", ..=5) => FusionTable::QWEN3_UP_TO_FIVE,
+            ("qwen3", _) => FusionTable::QWEN3_MORE,
+            (_, ..=5) => FusionTable::UP_TO_FIVE,
+            (_, ..=10) => FusionTable::UP_TO_TEN,
+            _ => FusionTable::MORE,
         };
         Self { judge, smoothing }
     }

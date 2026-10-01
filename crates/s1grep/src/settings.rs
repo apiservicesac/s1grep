@@ -33,6 +33,9 @@ impl IndexSettings {
     pub const FOLDER_IGNORE_FILE: &'static str = ".s1grepignore";
     /// Source files read; the extractor understands Python only for now.
     pub const EXTENSIONS: [&'static str; 1] = ["py"];
+    /// Said when a folder has no functions, because the usual reason is a repository in another language.
+    pub const LANGUAGE_NOTE: &'static str =
+        "s1grep reads Python files only for now; other languages are skipped (planned for 0.4).";
     /// Larger files are generated code or data.
     pub const MAXIMUM_FILE_BYTES: u64 = 1_000_000;
     /// Functions embedded per step: small enough to report progress often.
@@ -97,6 +100,10 @@ impl DisplaySettings {
     pub const PLAIN_INTERVAL: Duration = Duration::from_secs(10);
     /// Frame time of the animation shown while the models load.
     pub const SPINNER_INTERVAL: Duration = Duration::from_millis(80);
+    /// Columns of indentation kept under each result when its preview is shifted left.
+    pub const PREVIEW_INDENT: usize = 4;
+    /// Seconds of indexing before a speed and time left are shown; earlier figures swing too much.
+    pub const RATE_AFTER_SECONDS: f64 = 0.5;
 }
 
 /// One file of a published model, pinned by its size and SHA-256.
@@ -123,6 +130,8 @@ impl ModelSettings {
     pub const JUDGE_BUNDLE: &'static str = "s1-code-v3-onnx";
     pub const RETRIEVER_BUNDLE: &'static str = "granite-278m-onnx";
     pub const HUB: &'static str = "https://huggingface.co";
+    /// Bytes read from the network at a time while downloading and hashing a model file.
+    pub const DOWNLOAD_BUFFER_BYTES: usize = 1 << 20;
     /// Downloads larger than this print their progress.
     pub const DOWNLOAD_PROGRESS_FROM: u64 = 50_000_000;
     /// Attempts per file when Hugging Face is busy (429) or fails for a moment (5xx, network).
@@ -207,15 +216,18 @@ impl PlatformSettings {
     pub const WINDOWS_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
 }
 
-/// The development commands `bench` and `decide`.
-pub struct BenchSettings;
+/// Where s1grep keeps its models and indexes inside the per-user cache folder.
+pub struct CacheSettings;
 
-impl BenchSettings {
-    /// Bundle they load when no `--model` is given.
-    pub const MODEL: &'static str = "laya-multilingual";
-    /// The batched measurement: this many fragments of this many tokens.
-    pub const BATCH_SIZE: usize = 8;
-    pub const BATCH_TOKENS: usize = 128;
+impl CacheSettings {
+    /// Name of s1grep's folder inside the per-user cache and config folders.
+    pub const APPLICATION_FOLDER: &'static str = "s1grep";
+    pub const MODELS: &'static str = "models";
+    pub const PROJECTS: &'static str = "projects";
+    pub const PROJECT_EXTENSION: &'static str = "sqlite";
+    pub const VECTORS: &'static str = "vectors.sqlite";
+    /// Hex characters of the path fingerprint that names a project's index.
+    pub const PROJECT_KEY_LENGTH: usize = 16;
 }
 
 /// The MCP server for coding agents.
@@ -238,13 +250,15 @@ impl ConfigDirectory {
 
     pub fn root() -> anyhow::Result<PathBuf> {
         if let Some(config) = std::env::var_os("XDG_CONFIG_HOME") {
-            return Ok(PathBuf::from(config).join("s1grep"));
+            return Ok(PathBuf::from(config).join(CacheSettings::APPLICATION_FOLDER));
         }
         if let Some(roaming) = std::env::var_os("APPDATA") {
-            return Ok(PathBuf::from(roaming).join("s1grep"));
+            return Ok(PathBuf::from(roaming).join(CacheSettings::APPLICATION_FOLDER));
         }
         let home = std::env::var_os("HOME").context("HOME is not set")?;
-        Ok(PathBuf::from(home).join(".config").join("s1grep"))
+        Ok(PathBuf::from(home)
+            .join(".config")
+            .join(CacheSettings::APPLICATION_FOLDER))
     }
 
     /// The global ignore file, created with the default rules the first time it is needed.

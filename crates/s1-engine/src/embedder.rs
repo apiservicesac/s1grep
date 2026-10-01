@@ -87,7 +87,8 @@ impl Embedder {
     pub fn load(bundle: &EmbedderBundle, threads: usize, accelerator: Accelerator) -> Result<Self, EngineError> {
         let builder = Session::builder()?
             .with_optimization_level(GraphOptimizationLevel::Level3)
-            .and_then(|builder| builder.with_intra_threads(threads))
+            .map_err(ort::Error::from)?
+            .with_intra_threads(threads)
             .map_err(ort::Error::from)?;
         let session = accelerator
             .configure(builder)?
@@ -116,10 +117,6 @@ impl Embedder {
             pad_id,
             batch_size: EmbedderSettings::BATCH,
         })
-    }
-
-    pub fn config(&self) -> &EmbedderConfig {
-        &self.config
     }
 
     /// Vectors for code units, in the order given.
@@ -198,7 +195,12 @@ impl Embedder {
                 }
             };
             if self.config.normalize {
-                let norm = vector.iter().map(|value| value * value).sum::<f32>().sqrt().max(1e-12);
+                let norm = vector
+                    .iter()
+                    .map(|value| value * value)
+                    .sum::<f32>()
+                    .sqrt()
+                    .max(EmbedderSettings::MINIMUM_NORM);
                 vector.iter_mut().for_each(|value| *value /= norm);
             }
             vectors.push(vector);

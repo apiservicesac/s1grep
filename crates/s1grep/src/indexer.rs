@@ -3,7 +3,7 @@ use std::time::{Instant, UNIX_EPOCH};
 
 use anyhow::Context;
 use s1_engine::Embedder;
-use s1_index::{CodeUnit, FileState, IndexStore, PythonExtractor, SourceWalker, WalkOptions, content_hash};
+use s1_index::{CodeUnit, ContentFingerprint, FileState, IndexStore, PythonExtractor, SourceWalker, WalkOptions};
 
 use crate::models::Retriever;
 use crate::progress::IndexEvent;
@@ -113,7 +113,7 @@ impl Indexer<'_> {
             let bytes =
                 std::fs::read(&file.absolute).with_context(|| format!("reading {}", file.absolute.display()))?;
             let state = FileState {
-                hash: content_hash(&bytes),
+                hash: ContentFingerprint::of(&bytes),
                 size: metadata.len(),
                 modified,
             };

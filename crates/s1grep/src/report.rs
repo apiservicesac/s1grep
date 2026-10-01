@@ -5,6 +5,7 @@ use std::path::Path;
 
 use crate::searcher::FoundBy;
 use crate::service::SearchResponse;
+use crate::settings::{DisplaySettings, IndexSettings};
 
 /// Human-readable results: one heading per function with its location and score, then the first lines of its code.
 pub struct TextReport<'a> {
@@ -17,7 +18,12 @@ impl TextReport<'_> {
     pub fn render(&self) -> String {
         let mut text = String::new();
         if self.response.results.is_empty() {
-            let _ = writeln!(text, "No functions found in {}.", self.response.root.display());
+            let _ = writeln!(
+                text,
+                "No functions found in {}. {}",
+                self.response.root.display(),
+                IndexSettings::LANGUAGE_NOTE
+            );
             return text;
         }
         for result in &self.response.results {
@@ -74,7 +80,7 @@ impl TextReport<'_> {
             .map(indentation)
             .min()
             .unwrap_or(0);
-        let surplus = shallowest.saturating_sub(4);
+        let surplus = shallowest.saturating_sub(DisplaySettings::PREVIEW_INDENT);
         std::iter::once(first)
             .chain(body.iter().map(|line| {
                 if indentation(line) >= surplus {

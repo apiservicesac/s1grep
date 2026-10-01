@@ -21,7 +21,7 @@ s1grep "export rows to csv" . --json
 - Each result shows `file:start-end`, the function name, the judge's probability and its first lines. `--json` returns the
   same with the whole source of each function.
 - Tests, migrations and dependency folders are skipped by the ignore rules (`~/.config/s1grep/ignore`, `.s1grepignore`).
-- Only Python files are searched.
+- Only Python files are searched; in a repository in another language it finds nothing, so use grep there.
 
 ## Setup
 

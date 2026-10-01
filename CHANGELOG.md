@@ -2,6 +2,20 @@
 
 All notable changes to `s1grep` are documented here. Versions follow [Semantic Versioning](https://semver.org).
 
+## [Unreleased]
+
+### Added
+- `ARCHITECTURE.md`, architecture decision records in `docs/decisions/`, `docs/quality.md` and `CONTRIBUTING.md`.
+- CI runs clippy (warnings fail) and the unit tests on Windows.
+- "Python only, for now" is stated plainly in the README (with the judge measured on other languages), in `--help`,
+  in the agent skill, and when a folder has no functions to search.
+
+### Changed
+- The development commands (`eval`, `rerank-eval`, `bench`, `decide`, `units`) moved out of the shipped binary into
+  the `s1-lab` crate, which is never released. The exam refuses to run against the real cache.
+- Internal clean-up with no change in behaviour: every tunable value in its crate's settings, one SQL scope filter,
+  dead code removed, `decide` built on `decide_batch`.
+
 ## [0.2.4] — 2026-10-01
 
 ### Added

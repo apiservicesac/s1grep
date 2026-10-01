@@ -7,7 +7,7 @@ on:
 
 jobs:
   check:
-    name: Format, build and unit tests
+    name: Format, clippy and unit tests
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -16,5 +16,21 @@ jobs:
       - name: Format check
         run: make fmt-check
 
+      - name: Clippy
+        run: make lint
+
       - name: Unit tests
         run: make test
+
+  windows:
+    name: Unit tests on Windows
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+
+      # Native MSVC toolchain: the release build is cross-compiled with mingw, so this is the only place the code
+      # runs on Windows before a user does.
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Unit tests
+        run: cargo test --release --workspace --lib --bins

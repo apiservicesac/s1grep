@@ -24,6 +24,9 @@ impl SequenceLimits {
     pub const MINIMUM_HEAD_BUDGET: usize = 16;
     pub const MINIMUM_OPTION_TOKENS: usize = 4;
     pub const MINIMUM_INSTRUCTION_TOKENS: usize = 8;
+    /// Sequence and head lengths of a decision bundle whose config names none.
+    pub const DEFAULT_MAX_LEN: usize = 512;
+    pub const DEFAULT_HEAD_MAX_LEN: usize = 192;
 }
 
 /// Bounds of the calibration temperatures read from a bundle.
@@ -50,4 +53,6 @@ impl EmbedderSettings {
     pub const BATCH: usize = 16;
     /// Tokens tried, in order, as padding when the bundle names none.
     pub const PAD_CANDIDATES: [&'static str; 4] = ["<pad>", "[PAD]", "<|endoftext|>", "</s>"];
+    /// Smallest norm divided by when normalising a vector, so an all-zero output does not divide by zero.
+    pub const MINIMUM_NORM: f32 = 1e-12;
 }

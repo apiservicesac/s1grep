@@ -22,6 +22,12 @@ pub struct ModelInstaller {
     token: Option<String>,
 }
 
+impl Default for ModelInstaller {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ModelInstaller {
     pub fn new() -> Self {
         Self {
@@ -163,7 +169,7 @@ impl ModelInstaller {
         let mut reader = response.into_body().into_reader();
         let mut output = std::fs::File::create(partial).map_err(fatal)?;
         let mut hasher = Sha256::new();
-        let mut buffer = vec![0_u8; 1 << 20];
+        let mut buffer = vec![0_u8; ModelSettings::DOWNLOAD_BUFFER_BYTES];
         let mut written = 0_u64;
         let bar = ProgressBar::new(file.size).with_message(Self::name(file).to_string());
         bar.set_style(

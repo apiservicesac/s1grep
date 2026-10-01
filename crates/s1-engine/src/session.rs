@@ -23,7 +23,8 @@ impl DecisionSession {
     pub fn load(graph_path: &Path, threads: usize, accelerator: Accelerator) -> Result<Self, EngineError> {
         let builder = Session::builder()?
             .with_optimization_level(GraphOptimizationLevel::Level3)
-            .and_then(|builder| builder.with_intra_threads(threads))
+            .map_err(ort::Error::from)?
+            .with_intra_threads(threads)
             .map_err(ort::Error::from)?;
         let session = accelerator.configure(builder)?.commit_from_file(graph_path)?;
         Ok(Self { session })

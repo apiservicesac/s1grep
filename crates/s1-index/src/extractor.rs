@@ -83,10 +83,10 @@ impl PythonExtractor {
 
     /// `@decorator def f` is a `decorated_definition` wrapping the real definition; the unit starts at `def`.
     fn unwrap_decorated(node: Node) -> Node {
-        if node.kind() == "decorated_definition" {
-            if let Some(inner) = node.child_by_field_name("definition") {
-                return inner;
-            }
+        if node.kind() == "decorated_definition"
+            && let Some(inner) = node.child_by_field_name("definition")
+        {
+            return inner;
         }
         node
     }
