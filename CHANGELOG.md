@@ -2,7 +2,7 @@
 
 All notable changes to `s1grep` are documented here. Versions follow [Semantic Versioning](https://semver.org).
 
-## [Unreleased]
+## [0.5.0] — 2026-10-01
 
 ### Added
 - The background process answers on two threads: pings, `status` and `stop` answer at once even while it searches or
