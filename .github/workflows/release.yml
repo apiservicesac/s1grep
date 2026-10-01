@@ -68,7 +68,11 @@ jobs:
             irm https://raw.githubusercontent.com/apiservicesac/s1grep/main/install.ps1 | iex
             ```
 
-            Running it again updates s1grep in place.
+            Update in place:
+
+            ```powershell
+            irm https://raw.githubusercontent.com/apiservicesac/s1grep/main/update.ps1 | iex
+            ```
           files: |
             dist/${{ github.ref_name }}/s1grep-${{ github.ref_name }}-x86_64-linux
             dist/${{ github.ref_name }}/s1grep-${{ github.ref_name }}-x86_64-windows.exe
@@ -77,3 +81,4 @@ jobs:
             install.sh
             update.sh
             install.ps1
+            update.ps1

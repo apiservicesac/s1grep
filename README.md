@@ -39,8 +39,12 @@ irm https://raw.githubusercontent.com/apiservicesac/s1grep/main/install.ps1 | ie
 ```
 
 It puts `s1grep.exe` and the `onnxruntime.dll` it needs in `%LOCALAPPDATA%\Programs\s1grep`, adds that folder to
-your PATH and downloads the models. Run it again to update. `$env:S1GREP_VERSION`, `$env:S1GREP_NO_MODELS = "1"` and
-`$env:S1GREP_UNINSTALL = "1"` change what it does.
+your PATH and downloads the models. `$env:S1GREP_VERSION`, `$env:S1GREP_NO_MODELS = "1"` and
+`$env:S1GREP_UNINSTALL = "1"` change what it does. Update in place:
+
+```powershell
+irm https://raw.githubusercontent.com/apiservicesac/s1grep/main/update.ps1 | iex
+```
 
 ## How it works
 
@@ -169,7 +173,7 @@ the models to ONNX and records those fixtures.
 2. `make bump-patch`, `make bump-minor`, `make bump-major` or `make bump VERSION=X.Y.Z` sets the version in
    `Cargo.toml`, commits, tags `X.Y.Z` and pushes.
 3. The Release workflow builds the Linux and Windows binaries and publishes them with `install.sh`, `update.sh` and
-   `install.ps1`.
+   `install.ps1` and `update.ps1`.
 
 ## License
 
