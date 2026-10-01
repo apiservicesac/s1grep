@@ -98,7 +98,7 @@ impl std::error::Error for ServerError {}
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
 
     use super::{Envelope, ErrorKind, Reply, Request, ServerError};
     use crate::project::MissingFolder;
@@ -115,7 +115,7 @@ mod tests {
         let line = serde_json::to_string(&envelope).unwrap();
         assert!(line.contains(r#""kind":"progress""#));
         let read: Envelope = serde_json::from_str(&line).unwrap();
-        assert!(matches!(read.request, Request::Progress { target } if target == PathBuf::from("/work/shop")));
+        assert!(matches!(read.request, Request::Progress { target } if target == Path::new("/work/shop")));
         let reply = Reply::Failed {
             error: ServerError::new(ErrorKind::NotFound, "gone"),
         };
