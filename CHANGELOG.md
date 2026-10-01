@@ -13,6 +13,9 @@ All notable changes to `s1grep` are documented here. Versions follow [Semantic V
 - Ignore files decide what is read: `~/.config/s1grep/ignore` for every project (created with the defaults on first
   use) and a `.s1grepignore` in any folder; `--exclude` adds a pattern for one search.
 
+- Installers: `install.sh` and `update.sh` for Linux, `install.ps1` for Windows. They check every download against the
+  release's `SHA256SUMS` and prove the new binary runs before replacing anything.
+
 ### Changed
 - One index per project: searching a subfolder reuses the index of its project and is indexed first.
 - Vectors are stored by the content of each function and shared between projects, so a framework copied into several

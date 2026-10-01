@@ -55,19 +55,19 @@ if [ "${current}" = "s1grep ${VERSION}" ]; then
 fi
 
 base="https://github.com/${REPOSITORY}/releases/download/${VERSION}"
-archive="s1grep-${VERSION}-x86_64-linux.tar.gz"
+file="s1grep-${VERSION}-x86_64-linux"
 work="$(mktemp -d)"
 trap 'rm -rf "${work}"' EXIT
 
 info "Downloading ${VERSION}..."
-curl -fsSL --retry 3 "${base}/${archive}" -o "${work}/${archive}" || error "Could not download ${base}/${archive}"
+curl -fsSL --retry 3 "${base}/${file}" -o "${work}/${file}" || error "Could not download ${base}/${file}"
 curl -fsSL --retry 3 "${base}/SHA256SUMS" -o "${work}/SHA256SUMS" || error "Could not download SHA256SUMS"
-(cd "${work}" && grep " ${archive}\$" SHA256SUMS | sha256sum -c --quiet -) \
+(cd "${work}" && grep " ${file}\$" SHA256SUMS | sha256sum -c --quiet -) \
     || error "The download does not match SHA256SUMS: it arrived incomplete or changed. Try again."
-tar -xzf "${work}/${archive}" -C "${work}"
 
 # Prove it runs before it replaces anything that works.
-staged="${work}/s1grep-${VERSION}-x86_64-linux/s1grep"
+staged="${work}/${file}"
+chmod +x "${staged}"
 fetched="$("${staged}" --version 2>/dev/null)" || error "That download is not a working s1grep. Try again."
 
 # The background process still runs the old version; stop it so the next search starts the new one.

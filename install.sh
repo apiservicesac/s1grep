@@ -98,11 +98,11 @@ preflight() {
     case "$(uname -s)" in
         Linux) ;;
         Darwin) error "macOS is not supported yet." ;;
-        *) error "On Windows, download s1grep-<version>-x86_64-windows.zip from
-    https://github.com/${REPOSITORY}/releases and run s1grep.exe setup." ;;
+        *) error "On Windows, run in PowerShell:
+    irm https://raw.githubusercontent.com/${REPOSITORY}/main/install.ps1 | iex" ;;
     esac
     [ "$(uname -m)" = "x86_64" ] || error "Only x86-64 is supported for now (this machine is $(uname -m))."
-    for tool in curl tar sha256sum; do
+    for tool in curl sha256sum; do
         command -v "${tool}" >/dev/null || error "${tool} is required"
     done
     local glibc
@@ -129,25 +129,24 @@ resolve_version() {
 install_binary() {
     step "Installing s1grep ${VERSION}"
     local base="https://github.com/${REPOSITORY}/releases/download/${VERSION}"
-    local archive="s1grep-${VERSION}-x86_64-linux.tar.gz"
+    local file="s1grep-${VERSION}-x86_64-linux"
     local work
     work="$(mktemp -d)"
     trap 'rm -rf "${work}"' EXIT
 
-    info "Downloading ${archive}..."
-    curl -fsSL --retry 3 "${base}/${archive}" -o "${work}/${archive}" || error "Could not download ${base}/${archive}"
+    info "Downloading ${file}..."
+    curl -fsSL --retry 3 "${base}/${file}" -o "${work}/${file}" || error "Could not download ${base}/${file}"
     curl -fsSL --retry 3 "${base}/SHA256SUMS" -o "${work}/SHA256SUMS" || error "Could not download SHA256SUMS"
-    (cd "${work}" && grep " ${archive}\$" SHA256SUMS | sha256sum -c --quiet -) \
+    (cd "${work}" && grep " ${file}\$" SHA256SUMS | sha256sum -c --quiet -) \
         || error "The download does not match SHA256SUMS: it arrived incomplete or changed. Try again."
-    tar -xzf "${work}/${archive}" -C "${work}"
 
     # Prove it runs before it replaces anything.
-    local staged="${work}/s1grep-${VERSION}-x86_64-linux/s1grep"
-    "${staged}" --version >/dev/null 2>&1 || error "The downloaded binary does not run on this machine."
+    chmod +x "${work}/${file}"
+    "${work}/${file}" --version >/dev/null 2>&1 || error "The downloaded binary does not run on this machine."
 
     mkdir -p "${INSTALL_DIR}"
     [ -x "${TARGET}" ] && "${TARGET}" stop >/dev/null 2>&1 || true
-    install -m 755 "${staged}" "${TARGET}"
+    install -m 755 "${work}/${file}" "${TARGET}"
     success "Installed $("${TARGET}" --version) in ${TARGET}"
 }
 

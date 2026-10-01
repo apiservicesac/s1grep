@@ -32,9 +32,15 @@ Update in place, keeping models and indexes:
 curl -fsSL https://raw.githubusercontent.com/apiservicesac/s1grep/main/update.sh | bash
 ```
 
-Windows (x86-64): download `s1grep-<version>-x86_64-windows.zip` from the
-[releases](https://github.com/apiservicesac/s1grep/releases), keep `onnxruntime.dll` next to `s1grep.exe`, and run
-`s1grep setup` once.
+Windows (x86-64), in PowerShell, without administrator rights:
+
+```powershell
+irm https://raw.githubusercontent.com/apiservicesac/s1grep/main/install.ps1 | iex
+```
+
+It puts `s1grep.exe` and the `onnxruntime.dll` it needs in `%LOCALAPPDATA%\Programs\s1grep`, adds that folder to
+your PATH and downloads the models. Run it again to update. `$env:S1GREP_VERSION`, `$env:S1GREP_NO_MODELS = "1"` and
+`$env:S1GREP_UNINSTALL = "1"` change what it does.
 
 ## How it works
 
@@ -149,7 +155,7 @@ make build          # target/release/s1grep
 make test           # unit tests
 make test-parity    # Rust against the Python reference (needs the models in models/)
 make fmt            # format the code
-make dist           # Linux and Windows archives with SHA256SUMS in dist/<version>
+make dist           # Linux and Windows binaries with SHA256SUMS in dist/<version>
 make install        # copy the build into ~/.local/bin
 ```
 
@@ -162,7 +168,8 @@ the models to ONNX and records those fixtures.
 1. Describe the release in `CHANGELOG.md` under `## [X.Y.Z]`, commit and push.
 2. `make bump-patch`, `make bump-minor`, `make bump-major` or `make bump VERSION=X.Y.Z` sets the version in
    `Cargo.toml`, commits, tags `X.Y.Z` and pushes.
-3. The Release workflow builds the Linux and Windows archives and publishes them with `install.sh` and `update.sh`.
+3. The Release workflow builds the Linux and Windows binaries and publishes them with `install.sh`, `update.sh` and
+   `install.ps1`.
 
 ## License
 

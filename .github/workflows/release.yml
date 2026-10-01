@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   build-and-release:
-    name: Build & publish Linux and Windows archives
+    name: Build & publish the Linux and Windows binaries
     runs-on: ubuntu-24.04
 
     steps:
@@ -62,11 +62,18 @@ jobs:
             curl -fsSL https://raw.githubusercontent.com/apiservicesac/s1grep/main/update.sh | bash
             ```
 
-            Windows: unpack `s1grep-${{ github.ref_name }}-x86_64-windows.zip`, keep `onnxruntime.dll` next to
-            `s1grep.exe`, and run `s1grep setup`.
+            Windows (x86-64), in PowerShell:
+
+            ```powershell
+            irm https://raw.githubusercontent.com/apiservicesac/s1grep/main/install.ps1 | iex
+            ```
+
+            Running it again updates s1grep in place.
           files: |
-            dist/${{ github.ref_name }}/s1grep-${{ github.ref_name }}-x86_64-linux.tar.gz
-            dist/${{ github.ref_name }}/s1grep-${{ github.ref_name }}-x86_64-windows.zip
+            dist/${{ github.ref_name }}/s1grep-${{ github.ref_name }}-x86_64-linux
+            dist/${{ github.ref_name }}/s1grep-${{ github.ref_name }}-x86_64-windows.exe
+            dist/${{ github.ref_name }}/onnxruntime.dll
             dist/${{ github.ref_name }}/SHA256SUMS
             install.sh
             update.sh
+            install.ps1

@@ -1,7 +1,7 @@
 s1grep is licensed under the Apache License 2.0 (see LICENSE).
 
-It runs ONNX Runtime by Microsoft (MIT licence; see licenses/onnxruntime-LICENSE.txt and
-licenses/onnxruntime-ThirdPartyNotices.txt).
+It runs ONNX Runtime by Microsoft: built into the Linux binary, and onnxruntime.dll next to s1grep.exe on Windows
+(MIT licence; see licenses/onnxruntime-LICENSE.txt and licenses/onnxruntime-ThirdPartyNotices.txt).
 
 The models are not included; `s1grep setup` downloads them from Hugging Face:
 - s1-code v3 (api-service-sac/s1-code-v3), Apache 2.0, fine-tuned from Laya by Convai Innovations (Apache 2.0).

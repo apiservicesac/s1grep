@@ -13,6 +13,9 @@ ORT_VERSION := 1.28.0
 ORT_DLL     := .cache/onnxruntime/$(ORT_VERSION)/onnxruntime.dll
 ORT_URL     := https://github.com/microsoft/onnxruntime/releases/download/v$(ORT_VERSION)/onnxruntime-win-x64-$(ORT_VERSION).zip
 
+# Pulls lib/onnxruntime.dll out of Microsoft's release archive. One line: Python reads the indentation make keeps.
+export ORT_EXTRACT := import io, os, urllib.request, zipfile; archive = zipfile.ZipFile(io.BytesIO(urllib.request.urlopen(os.environ['URL']).read())); member = next(name for name in archive.namelist() if name.endswith('lib/onnxruntime.dll')); open('/out/onnxruntime.dll', 'wb').write(archive.read(member))
+
 # rustfmt is added to the image as root; the files are handed back to the user afterwards.
 UID_GID     := $(shell id -u):$(shell id -g)
 RUST_ROOT   := docker run --rm -v "$(CURDIR)":/p -w /p rust:1-trixie sh -c
@@ -42,26 +45,15 @@ runtime: $(ORT_DLL) ## Download onnxruntime.dll for the Windows build
 
 $(ORT_DLL):
 	@mkdir -p $(dir $(ORT_DLL))
-	docker run --rm -u $(UID_GID) -v "$(CURDIR)/$(dir $(ORT_DLL))":/out python:3.13-bookworm python -c "\
-		import io, urllib.request, zipfile; \
-		archive = zipfile.ZipFile(io.BytesIO(urllib.request.urlopen('$(ORT_URL)').read())); \
-		member = next(name for name in archive.namelist() if name.endswith('lib/onnxruntime.dll')); \
-		open('/out/onnxruntime.dll', 'wb').write(archive.read(member))"
+	docker run --rm -u $(UID_GID) -v "$(CURDIR)/$(dir $(ORT_DLL))":/out -e URL=$(ORT_URL) python:3.13-bookworm \
+	    python -c "$$ORT_EXTRACT"
 
-dist: build windows runtime ## Pack the release archives and SHA256SUMS into dist/<version>
+dist: build windows runtime ## Collect the release files and SHA256SUMS into dist/<version>
 	@rm -rf $(DIST) && mkdir -p $(DIST)
-	@for platform in x86_64-linux x86_64-windows; do \
-	    folder=$(DIST)/s1grep-$(CURRENT_VERSION)-$$platform; \
-	    mkdir -p $$folder/licenses; \
-	    cp README.md LICENSE packaging/NOTICE.txt $$folder/; \
-	    cp packaging/licenses/* $$folder/licenses/; \
-	 done
-	@install -m 755 $(LINUX_BIN) $(DIST)/s1grep-$(CURRENT_VERSION)-x86_64-linux/s1grep
-	@cp $(WINDOWS_BIN) $(ORT_DLL) $(DIST)/s1grep-$(CURRENT_VERSION)-x86_64-windows/
-	@cd $(DIST) && tar -czf s1grep-$(CURRENT_VERSION)-x86_64-linux.tar.gz s1grep-$(CURRENT_VERSION)-x86_64-linux \
-	    && python3 -m zipfile -c s1grep-$(CURRENT_VERSION)-x86_64-windows.zip s1grep-$(CURRENT_VERSION)-x86_64-windows \
-	    && rm -rf s1grep-$(CURRENT_VERSION)-x86_64-linux s1grep-$(CURRENT_VERSION)-x86_64-windows \
-	    && sha256sum s1grep-* > SHA256SUMS
+	@install -m 755 $(LINUX_BIN) $(DIST)/s1grep-$(CURRENT_VERSION)-x86_64-linux
+	@cp $(WINDOWS_BIN) $(DIST)/s1grep-$(CURRENT_VERSION)-x86_64-windows.exe
+	@cp $(ORT_DLL) $(DIST)/onnxruntime.dll
+	@cd $(DIST) && sha256sum s1grep-* onnxruntime.dll > SHA256SUMS
 	@echo "$(GREEN)Release files in $(DIST):$(NC)" && ls -lh $(DIST)
 
 test: ## Run the unit tests
