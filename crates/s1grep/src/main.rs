@@ -31,7 +31,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Download the models (once, about 2.4 GB)
+    /// Download the models (once, about 2.9 GB)
     Setup(SetupCommand),
     /// Show the server, the models and how far each project is indexed
     Status(StatusCommand),

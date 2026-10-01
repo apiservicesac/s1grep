@@ -26,7 +26,7 @@ s1grep "export rows to csv" . --json
 
 ## Setup
 
-If `s1grep` reports missing models, ask the user to run `s1grep setup` (a one-time 2.4 GB download). The first search
+If `s1grep` reports missing models, ask the user to run `s1grep setup` (a one-time 2.9 GB download). The first search
 loads the models into a background process (about 10 s); later searches take about a second. `s1grep status` shows
 what is ready and how far each project is indexed.
 

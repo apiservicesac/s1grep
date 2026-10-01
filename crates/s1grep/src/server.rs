@@ -396,7 +396,7 @@ impl BackgroundServer {
         let folder = models.resolved()?;
         if !ModelInstaller::is_complete(&folder) {
             bail!(
-                "the models are not in {}: run `s1grep setup` to download them (about 2.4 GB, once)",
+                "the models are not in {}: run `s1grep setup` to download them (about 2.9 GB, once)",
                 folder.display()
             );
         }

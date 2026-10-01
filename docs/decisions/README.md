@@ -17,3 +17,4 @@ supersedes it. [0000](0000-engine-measurements.md) collects the engine measureme
 | [0010](0010-lab-outside-the-product.md) | Development tools live in s1-lab, outside the shipped binary | Implemented in stage 0. |
 | [0011](0011-quality-gates.md) | Quality gates for every release | Stage 0 (CI); exam and benchmarks on every release. |
 | [0012](0012-storage-layout.md) | Storage: SQLite, one index per project, in its own folder | done in stage 1 (0.2.5). |
+| [0013](0013-outline-model.md) | A smaller model embeds outlines | done (0.3.0). |

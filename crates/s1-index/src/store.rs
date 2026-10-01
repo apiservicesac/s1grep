@@ -255,22 +255,28 @@ impl IndexStore {
         Ok(())
     }
 
-    /// Every unit of the project that has a vector, with its best one: the whole-source vector from `space`, else
-    /// the outline vector from `outline_space`. No sources are read: they are fetched for the final candidates only.
-    pub fn vector_rows(&self, space: &str, outline_space: &str) -> Result<Vec<(VectorRow, Vec<f32>)>, IndexError> {
+    /// Every unit of the project with a vector in `space`, except those that also have one in `except_space`
+    /// (outlines are searched only for functions whose whole source has no vector yet). No sources are read: they are
+    /// fetched for the final candidates only.
+    pub fn vector_rows(
+        &self,
+        space: &str,
+        except_space: Option<&str>,
+    ) -> Result<Vec<(VectorRow, Vec<f32>)>, IndexError> {
         let mut statement = self.connection.prepare(
-            "SELECT units.id, path, COALESCE(whole.vector, outline.vector), whole.vector IS NOT NULL FROM units
-             LEFT JOIN shared.vectors AS whole ON whole.content = units.content AND whole.model = ?1
-             LEFT JOIN shared.vectors AS outline ON outline.content = units.content AND outline.model = ?2
-             WHERE whole.vector IS NOT NULL OR outline.vector IS NOT NULL
+            "SELECT units.id, path, stored.vector FROM units
+             JOIN shared.vectors AS stored ON stored.content = units.content AND stored.model = ?1
+             WHERE ?2 IS NULL OR NOT EXISTS (SELECT 1 FROM shared.vectors AS other
+                                             WHERE other.model = ?2 AND other.content = units.content)
              ORDER BY units.id",
         )?;
-        let rows = statement.query_map(params![space, outline_space], |row| {
+        let whole = except_space.is_none();
+        let rows = statement.query_map(params![space, except_space], |row| {
             Ok((
                 VectorRow {
                     unit_id: row.get(0)?,
                     path: row.get(1)?,
-                    whole: row.get(3)?,
+                    whole,
                 },
                 Self::vector(&row.get::<_, Vec<u8>>(2)?),
             ))
@@ -528,7 +534,7 @@ mod tests {
             .unwrap();
         assert_eq!(store.pending_count("new", None).unwrap(), 0);
         assert_eq!(store.pending_count("old", None).unwrap(), 2);
-        let rows = store.vector_rows("new", "outline").unwrap();
+        let rows = store.vector_rows("new", None).unwrap();
         assert_eq!(rows[0].1, vec![3.0]);
         assert_eq!(rows[1].1, vec![2.0]);
     }

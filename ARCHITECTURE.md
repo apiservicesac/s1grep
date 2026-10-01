@@ -30,7 +30,7 @@ Principles that every change keeps:
 
 | Crate | Responsibility | Shipped |
 |---|---|---|
-| `s1-engine` | Runs ONNX models: the sentence embedder and the decision model (Laya format), with exact parity to the Python reference | yes |
+| `s1-engine` | Runs ONNX models: the sentence embedders and the decision model (Laya format), with exact parity to the Python reference | yes |
 | `s1-index` | Turns source files into code units (tree-sitter), walks repositories, stores units and vectors in SQLite, ranks and fuses | yes |
 | `s1grep` | The product, as a library and the `s1grep` binary: search service, background process, MCP server, model installer, terminal output | yes |
 | `s1-lab` | Development tools: the exam, judge-only reranking, benchmarks, raw decisions, unit dumps | no |
@@ -52,8 +52,9 @@ s1grep "query" PATH
        ├─ few units missing    embed their whole source now
        ├─ many units missing   embed outlines (path, name, first lines) of the scope now, schedule the rest
        ├─ ProjectSession       the project's open catalog and its vectors in memory
-       └─ Searcher::search     embed query → nearest 25 in the VectorIndex → read their sources → judge reads
-                               the top 5 → rank fusion
+       └─ Searcher::search     embed the query with each model → nearest 25 among whole-source vectors and
+                               among outline-only vectors → merge by reciprocal rank → read their sources →
+                               judge reads up to 5 (stops at 0.9) → rank fusion
 ```
 
 The background process keeps up to four recently searched projects open (`ProjectSession`): the catalog connection
@@ -61,7 +62,9 @@ and a `VectorIndex`, all vectors of the project in one matrix, reloaded only whe
 them (`PRAGMA data_version`). A search ranks that matrix, then reads the source of its 25 candidates only.
 
 Between requests the server calls `SearchService::index_step`, which embeds short batches of the oldest indexing job:
-first the outlines of the whole project, then whole sources. After each request it yields for a moment, so the search
+first the outlines of the whole project with granite-embedding-97m-multilingual-r2, then whole sources with
+granite-embedding-278m-multilingual ([ADR-0013](docs/decisions/0013-outline-model.md)). Outline vectors are searched
+only for functions whose whole source has no vector yet, so a fully indexed project is searched exactly as before. After each request it yields for a moment, so the search
 that follows a ping never queues behind a batch. On start it resumes the jobs of projects searched in the last day.
 The process exits after 30 idle minutes once no job is left.
 
@@ -69,7 +72,7 @@ The process exits after 30 idle minutes once no job is left.
 
 ```text
 ~/.cache/s1grep/                     (%LOCALAPPDATA%\s1grep on Windows)
-├── models/                          s1-code-v3-onnx, granite-278m-onnx
+├── models/                          s1-code-v3-onnx, granite-278m-onnx, granite-97m-r2-onnx
 ├── vectors.sqlite                   shared by every project: (embedding space, content key) → f32 vector
 ├── projects/<path fingerprint>/
 │   ├── project.json                 the project's real path, creation and last use

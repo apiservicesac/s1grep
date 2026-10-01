@@ -33,7 +33,7 @@ Reference results (granite 278M, s1-code v3, the judge reads 5):
 | Setting | top-1 | top-5 |
 |---|---|---|
 | Whole sources | 168 | 189 |
-| Outlines only | 135 | 167 |
+| Outlines only (granite 97M-r2, the shipped outline model) | 133 | 166 |
 
 ## Benchmarks
 

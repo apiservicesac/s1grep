@@ -39,6 +39,15 @@ impl Retriever {
         }
     }
 
+    /// The smaller model that embeds outlines for this retriever: several times faster, so a large project becomes
+    /// searchable in minutes, while whole sources keep the larger model's quality.
+    pub fn outline_partner(self) -> Retriever {
+        match self {
+            Self::Granite | Self::GraniteSmall => Self::GraniteSmall,
+            Self::Qwen3 => Self::Qwen3,
+        }
+    }
+
     /// The space of this retriever's vectors of one kind of text.
     pub fn space(self, text_format: &'static str) -> EmbeddingSpace {
         match self {

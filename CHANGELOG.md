@@ -2,9 +2,14 @@
 
 All notable changes to `s1grep` are documented here. Versions follow [Semantic Versioning](https://semver.org).
 
-## [Unreleased]
+## [0.3.0] — 2026-10-01
 
 ### Changed
+- Outlines, the quick first pass over a large repository, are embedded by granite-embedding-97m-multilingual-r2, about
+  three times faster than the main retriever with nearly the same answers (top-1 133 instead of 135 on outlines
+  alone); whole sources keep the main retriever, so a fully indexed project is searched exactly as before (168/189).
+  A 25,000-function repository becomes fully searchable in about 7 minutes instead of more than 20. `s1grep setup`
+  downloads the new model (about 400 MB more).
 - The judge stops reading candidates once one scores at least 0.9: a third fewer judge runs per search (3.3 instead
   of 5) with the same exam results.
 

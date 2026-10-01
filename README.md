@@ -22,7 +22,7 @@ curl -fsSL https://raw.githubusercontent.com/apiservicesac/s1grep/main/install.s
 ```
 
 It installs `s1grep` into `~/.local/bin` without sudo, checks the download against the release's `SHA256SUMS` and
-downloads the models (about 2.4 GB, once). Options: `--version X.Y.Z`, `--dir DIR`, `--no-models`, `--uninstall`
+downloads the models (about 2.9 GB, once). Options: `--version X.Y.Z`, `--dir DIR`, `--no-models`, `--uninstall`
 (`--purge` also deletes models and indexes).
 
 Update in place, keeping models and indexes:
@@ -112,8 +112,10 @@ s1grep "export rows to csv" . --json                     # machine-readable, for
 | `s1grep gc` | Removes indexes of folders that no longer exist and vectors nothing uses (`--dry-run` to preview) |
 
 The first search in a project builds its index, with a progress bar. In a large project it waits at most about 10 s
-for quick outline vectors (path, name and signature), answers with what is ready and says how much is still pending;
-the background process indexes the rest and results improve as it goes. Later searches only re-read files whose size
+for quick outline vectors (path, name and first lines, embedded by a smaller model about three times faster), answers
+with what is ready and says how much is still pending; the background process makes the whole project searchable in
+minutes (about 7 for 25,000 functions on an 8-core CPU), then embeds whole sources with the main model, and results
+improve as it goes. Later searches only re-read files whose size
 or date changed. Searching a subfolder reuses
 the index of its project, and functions shared by several projects are embedded once.
 
@@ -143,7 +145,7 @@ background process.
 ### Speed and memory
 
 Loading the two models takes about 10 seconds, so the first search starts a background process that keeps them in
-memory (about 2.5 GB): later searches take about a second. Nothing has to be started by hand, no second terminal is
+memory (about 2.9 GB): later searches take about a second. Nothing has to be started by hand, no second terminal is
 needed, and the process stops on its own after 30 minutes without searches. `s1grep status` shows it, `s1grep stop`
 stops it now, and `--no-server` runs a search entirely in the terminal's own process.
 
@@ -156,6 +158,7 @@ Windows); `--models` or `$S1GREP_MODELS` point elsewhere.
 |---|---|
 | `s1-code-v3-onnx` | [api-service-sac/s1-code-v3](https://huggingface.co/api-service-sac/s1-code-v3), folder `onnx/` |
 | `granite-278m-onnx` | [api-service-sac/granite-embedding-278m-multilingual-onnx](https://huggingface.co/api-service-sac/granite-embedding-278m-multilingual-onnx) |
+| `granite-97m-r2-onnx` | [api-service-sac/granite-embedding-97m-multilingual-r2-onnx](https://huggingface.co/api-service-sac/granite-embedding-97m-multilingual-r2-onnx) |
 
 Both can also be rebuilt from the original checkpoints with `tools/model-export`.
 

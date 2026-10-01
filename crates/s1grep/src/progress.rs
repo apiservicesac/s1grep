@@ -11,7 +11,7 @@ use crate::settings::DisplaySettings;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "event", rename_all = "snake_case")]
 pub enum IndexEvent {
-    /// Loading the models into this process (about 2.4 GB), before anything else can happen.
+    /// Loading the models into this process (about 2.9 GB), before anything else can happen.
     LoadingModels,
     /// Starting the background process that keeps the models loaded between searches.
     StartingServer,

@@ -1,5 +1,7 @@
 use s1_engine::{Accelerator, Embedder, EmbedderBundle, EngineOptions, LayaEngine, ModelBundle, QuestionSet};
 use s1_index::{CodeUnit, FusionWeights, IndexStore, RankFusion, VectorIndex, VectorRow};
+
+use crate::indexer::Pass;
 use serde_json::{Value, json};
 
 use crate::models::{ModelDirectory, Retriever};
@@ -25,9 +27,32 @@ pub enum FoundBy {
     Outline,
 }
 
-/// The two-stage search: the embedder brings candidates, s1-code judges the first few, and both orders are fused.
+/// What a search ranks: the vectors of whole sources, and the outline vectors of the functions that have no
+/// whole-source vector yet. The two come from different models, so they are ranked apart and their lists merged.
+pub struct SearchIndexes {
+    pub whole: VectorIndex,
+    pub outline: VectorIndex,
+}
+
+impl SearchIndexes {
+    pub fn rows(&self) -> impl Iterator<Item = &VectorRow> {
+        self.whole.rows().iter().chain(self.outline.rows())
+    }
+}
+
+/// One candidate before its source is read: which index and row found it, and with what similarity.
+struct Candidate<'a> {
+    row: &'a VectorRow,
+    similarity: f32,
+    score: f64,
+}
+
+/// The two-stage search: the embedders bring candidates, s1-code judges the first few, and both orders are fused.
 pub struct Searcher {
-    pub embedder: Embedder,
+    /// Embeds whole sources and the query compared with them.
+    embedder: Embedder,
+    /// A smaller model for outlines, the quick first pass that makes a large project searchable in minutes.
+    outline_embedder: Embedder,
     judge: Option<LayaEngine>,
     retriever: Retriever,
     /// The judge stops reading candidates once one scores at least this; `None` reads them all.
@@ -47,6 +72,8 @@ impl Searcher {
         }
         let embedder_bundle = EmbedderBundle::open(models.bundle(retriever.bundle_name())?)?;
         let embedder = Embedder::load(&embedder_bundle, options.threads, Accelerator::Cpu)?;
+        let outline_bundle = EmbedderBundle::open(models.bundle(retriever.outline_partner().bundle_name())?)?;
+        let outline_embedder = Embedder::load(&outline_bundle, options.threads, Accelerator::Cpu)?;
         let judge = if with_judge {
             let bundle = ModelBundle::open(models.bundle(crate::settings::ModelSettings::JUDGE_BUNDLE)?)?;
             Some(LayaEngine::load(&bundle, &options)?)
@@ -55,6 +82,7 @@ impl Searcher {
         };
         Ok(Self {
             embedder,
+            outline_embedder,
             judge,
             retriever,
             early_stop: Some(SearchSettings::JUDGE_EARLY_STOP),
@@ -69,18 +97,26 @@ impl Searcher {
         self.judge.is_some()
     }
 
-    /// The functions that answer `query` best: the nearest rows of `index` that `keep` accepts, read from `store`,
+    /// The model that embeds the texts of `pass`.
+    pub fn embedder_for(&mut self, pass: Pass) -> &mut Embedder {
+        match pass {
+            Pass::Whole => &mut self.embedder,
+            Pass::Outline => &mut self.outline_embedder,
+        }
+    }
+
+    /// The functions that answer `query` best: the nearest rows of `indexes` that `keep` accepts, read from `store`,
     /// with the judge's reading of the first `judged`, and the judge's order fused with the retriever's (weights
     /// tuned on the development exam).
     pub fn search(
         &mut self,
         query: &str,
-        index: &VectorIndex,
+        indexes: &SearchIndexes,
         keep: impl Fn(&VectorRow) -> bool,
         store: &IndexStore,
         judged: usize,
     ) -> anyhow::Result<Vec<Hit>> {
-        let mut hits = self.by_meaning(query, index, keep, store)?;
+        let mut hits = self.by_meaning(query, indexes, keep, store)?;
         let judged = judged.min(hits.len());
         if self.judge.is_none() || judged == 0 {
             return Ok(hits);
@@ -93,37 +129,58 @@ impl Searcher {
         Ok(order.into_iter().map(|position| hits[position].clone()).collect())
     }
 
+    /// Nearest functions by each index, merged by reciprocal rank when both have rows. With only one index (a
+    /// project fully indexed, or not at all) its order is kept as it is.
     fn by_meaning(
         &mut self,
         query: &str,
-        index: &VectorIndex,
+        indexes: &SearchIndexes,
         keep: impl Fn(&VectorRow) -> bool,
         store: &IndexStore,
     ) -> anyhow::Result<Vec<Hit>> {
-        if index.is_empty() {
-            return Ok(Vec::new());
+        let mut candidates: Vec<Candidate> = Vec::new();
+        for (index, embedder) in [
+            (&indexes.whole, &mut self.embedder),
+            (&indexes.outline, &mut self.outline_embedder),
+        ] {
+            if index.is_empty() {
+                continue;
+            }
+            let query_vector = embedder.embed_query(query)?;
+            for (rank, (position, similarity)) in index
+                .nearest(&query_vector, SearchSettings::CANDIDATES, &keep)
+                .into_iter()
+                .enumerate()
+            {
+                candidates.push(Candidate {
+                    row: index.row(position),
+                    similarity,
+                    score: 1.0 / (SearchSettings::MERGE_SMOOTHING + rank as f64 + 1.0),
+                });
+            }
         }
-        let query_vector = self.embedder.embed_query(query)?;
-        let nearest = index.nearest(&query_vector, SearchSettings::CANDIDATES, keep);
-        let ids: Vec<i64> = nearest
-            .iter()
-            .map(|(position, _)| index.row(*position).unit_id)
-            .collect();
+        // Stable sort: on equal scores the whole-source candidate, pushed first, stays first.
+        candidates.sort_by(|left, right| right.score.total_cmp(&left.score));
+        candidates.truncate(SearchSettings::CANDIDATES);
+        let ids: Vec<i64> = candidates.iter().map(|candidate| candidate.row.unit_id).collect();
         let units = store.units_by_ids(&ids)?;
-        Ok(nearest
+        Ok(candidates
             .iter()
-            .filter_map(|(position, similarity)| {
-                let row = index.row(*position);
-                let stored = units.iter().find(|stored| stored.id == row.unit_id)?;
-                Some((row, stored, *similarity))
+            .filter_map(|candidate| {
+                let stored = units.iter().find(|stored| stored.id == candidate.row.unit_id)?;
+                Some((candidate, stored))
             })
             .enumerate()
-            .map(|(rank, (row, stored, similarity))| Hit {
+            .map(|(rank, (candidate, stored))| Hit {
                 unit: stored.unit.clone(),
                 retriever_rank: rank + 1,
-                similarity,
+                similarity: candidate.similarity,
                 judge: None,
-                found_by: if row.whole { FoundBy::Code } else { FoundBy::Outline },
+                found_by: if candidate.row.whole {
+                    FoundBy::Code
+                } else {
+                    FoundBy::Outline
+                },
             })
             .collect())
     }

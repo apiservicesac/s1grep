@@ -13,13 +13,13 @@ pub struct SetupCommand {
 }
 
 impl SetupCommand {
-    /// Downloads the models (about 2.4 GB, checked with SHA-256) and says what to do next.
+    /// Downloads the models (about 2.9 GB, checked with SHA-256) and says what to do next.
     pub fn run(self) -> anyhow::Result<()> {
         let root = self.models.resolved()?;
         if ModelInstaller::is_complete(&root) && !self.force {
             eprintln!("Models already in {}.", root.display());
         } else {
-            eprintln!("Downloading the models into {} (about 2.4 GB, once).", root.display());
+            eprintln!("Downloading the models into {} (about 2.9 GB, once).", root.display());
             ModelInstaller::new().install(&root, self.force)?;
             eprintln!("Models ready in {}.", root.display());
         }

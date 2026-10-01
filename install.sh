@@ -5,7 +5,7 @@
 #   curl -fsSL https://raw.githubusercontent.com/apiservicesac/s1grep/main/install.sh | bash
 #
 # Installs the latest release into ~/.local/bin, for the current user and without sudo, then downloads the models
-# (about 2.4 GB, once). Every download is checked against the release's SHA256SUMS, and the binary is proven to run
+# (about 2.9 GB, once). Every download is checked against the release's SHA256SUMS, and the binary is proven to run
 # before it is put in place.
 
 set -euo pipefail
@@ -167,7 +167,7 @@ check_path() {
 MODELS_READY=false
 install_models() {
     step "Models"
-    if ${MODELS} && ask_yes "Download the models now (about 2.4 GB, once)?"; then
+    if ${MODELS} && ask_yes "Download the models now (about 2.9 GB, once)?"; then
         "${TARGET}" setup && MODELS_READY=true
     else
         info "Run \`s1grep setup\` before the first search."
@@ -187,7 +187,7 @@ install_models
 
 if ! ${MODELS_READY}; then
     step "Ready"
-    echo "  s1grep setup             download the models (about 2.4 GB, once)"
+    echo "  s1grep setup             download the models (about 2.9 GB, once)"
     echo "  s1grep \"where do we retry a failed payment\" path/to/repo"
     echo "  s1grep skill --install   teach Claude Code to use it"
     echo

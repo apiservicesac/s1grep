@@ -24,6 +24,9 @@ impl SearchSettings {
     /// The judge stops reading candidates once one scores at least this. On the exam it reads a third fewer
     /// candidates (3.3 instead of 5) with the same answers; at 0.8 it lost two.
     pub const JUDGE_EARLY_STOP: f64 = 0.9;
+    /// Reciprocal-rank merge of the whole-source and outline lists while a project is being indexed: a candidate at
+    /// rank r of either list scores 1 / (this + r).
+    pub const MERGE_SMOOTHING: f64 = 60.0;
 }
 
 /// How projects are read and indexed.
@@ -52,7 +55,7 @@ impl IndexSettings {
     /// Functions the background process embeds between two looks for new searches (a few seconds of work).
     pub const BACKGROUND_BATCH: usize = 4;
     /// Outlines the background process embeds per step; short, so a search waits at most a second or two.
-    pub const BACKGROUND_OUTLINE_BATCH: usize = 16;
+    pub const BACKGROUND_OUTLINE_BATCH: usize = 64;
     /// Functions the background process fetches from the index at a time, so it does not query it for every batch.
     pub const BACKGROUND_QUEUE: usize = 512;
     pub const BACKGROUND_OUTLINE_QUEUE: usize = 2048;
@@ -149,7 +152,7 @@ impl ModelSettings {
     pub const RETRIEVER_MODEL: &'static str = "granite-embedding-278m-multilingual";
     pub const RETRIEVER_REVISION: &'static str = "b795cbc00b23bcaafbbbba6b242448104cc62ec0";
     pub const RETRIEVER_DIMENSION: usize = 768;
-    /// The smaller retriever under evaluation, exported locally by tools/model-export.
+    /// The smaller retriever that embeds outlines (ADR-0013).
     pub const SMALL_RETRIEVER_BUNDLE: &'static str = "granite-97m-r2-onnx";
     pub const SMALL_RETRIEVER_MODEL: &'static str = "granite-embedding-97m-multilingual-r2";
     pub const SMALL_RETRIEVER_REVISION: &'static str = "835ad14087e140460703cf0fae09f97d469d65c2";
@@ -171,7 +174,7 @@ impl ModelSettings {
     pub const WAIT_AFTER_NETWORK_ERROR: Duration = Duration::from_secs(5);
     pub const DOWNLOAD_MAXIMUM_WAIT: Duration = Duration::from_secs(60);
 
-    pub const RELEASES: [ModelRelease; 2] = [
+    pub const RELEASES: [ModelRelease; 3] = [
         ModelRelease {
             bundle: Self::JUDGE_BUNDLE,
             repository: "api-service-sac/s1-code-v3",
@@ -218,6 +221,28 @@ impl ModelSettings {
                     path: "tokenizer.json",
                     size: 9_081_351,
                     sha256: "2a0d7366dd7780ea36cc42431dd74cd79289b783ab01acd33013fcc96865a8e9",
+                },
+            ],
+        },
+        ModelRelease {
+            bundle: Self::SMALL_RETRIEVER_BUNDLE,
+            repository: "api-service-sac/granite-embedding-97m-multilingual-r2-onnx",
+            revision: "58c1c9b01228507a585e608b6052fb3a275c1935",
+            files: &[
+                ModelFile {
+                    path: "embedder_config.json",
+                    size: 220,
+                    sha256: "bd5954c9c90fa59d25165c4eadf94b3c1965e2de9e76a880f13f986a13c29b35",
+                },
+                ModelFile {
+                    path: "model.onnx",
+                    size: 391_120_795,
+                    sha256: "77747fc21a6ca80ae7ffaf7cea7eab3f8e8b38f249d280eedf40e6789afcbecc",
+                },
+                ModelFile {
+                    path: "tokenizer.json",
+                    size: 25_301_672,
+                    sha256: "4f2842d568e2724370aec203652a42ac783c7937f8347a1a2cc7506d71f1582f",
                 },
             ],
         },

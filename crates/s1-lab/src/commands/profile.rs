@@ -44,8 +44,13 @@ impl ProfileCommand {
         store.coverage(&whole, None)?;
         Self::line("coverage", started, "");
         let started = Instant::now();
-        let index = VectorIndex::new(store.vector_rows(&whole, &outline)?);
-        Self::line("load vectors", started, &format!("{} units", index.len()));
+        let index = VectorIndex::new(store.vector_rows(&whole, None)?);
+        let outlines = VectorIndex::new(store.vector_rows(&outline, Some(&whole))?);
+        Self::line(
+            "load vectors",
+            started,
+            &format!("{} whole, {} outline only", index.len(), outlines.len()),
+        );
         let query = vec![0.0_f32; index.rows().first().map_or(0, |_| 768)];
         let started = Instant::now();
         index.nearest(&query, 25, |_| true);

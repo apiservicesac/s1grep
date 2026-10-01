@@ -21,7 +21,10 @@ pub enum Pass {
 impl Pass {
     /// The embedding space key of this pass's vectors.
     pub fn key(self, retriever: Retriever) -> String {
-        retriever.space(self.text_format()).key()
+        match self {
+            Self::Outline => retriever.outline_partner().space(self.text_format()).key(),
+            Self::Whole => retriever.space(self.text_format()).key(),
+        }
     }
 
     pub fn text_format(self) -> &'static str {

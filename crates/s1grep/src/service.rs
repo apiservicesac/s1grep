@@ -219,11 +219,11 @@ impl SearchService {
             let report = indexer.scan(&project.root, &request.filters.walk_options()?, progress)?;
             let pending = indexer.store.pending_count(&whole, scope)?;
             let embedded = if pending > 0 && pending <= IndexSettings::INDEX_BEFORE_ANSWERING {
-                indexer.embed(&mut self.searcher.embedder, Pass::Whole, scope, progress)?
+                indexer.embed(self.searcher.embedder_for(Pass::Whole), Pass::Whole, scope, progress)?
             } else if pending > 0 && !has_job {
                 // Only the first search waits, briefly; later ones answer at once while the background works.
                 indexer.embed_for(
-                    &mut self.searcher.embedder,
+                    self.searcher.embedder_for(Pass::Outline),
                     Pass::Outline,
                     scope,
                     Some(IndexSettings::OUTLINE_BEFORE_ANSWERING),
@@ -251,7 +251,7 @@ impl SearchService {
             0
         };
         let (vectors, store) = session.vectors(self.retriever)?;
-        let searchable = vectors.rows().iter().filter(|row| keep(row)).count();
+        let searchable = vectors.rows().filter(|row| keep(row)).count();
         let started = Instant::now();
         let hits = self.searcher.search(&request.query, vectors, keep, store, judged)?;
         let search_seconds = started.elapsed().as_secs_f64();
@@ -419,7 +419,7 @@ impl SearchService {
         .min(job.queue.len());
         let batch: Vec<_> = job.queue.split_off(job.queue.len() - take);
         let texts: Vec<String> = batch.iter().map(|stored| job.pass.text(&stored.unit)).collect();
-        let vectors = self.searcher.embedder.embed_documents(&texts)?;
+        let vectors = self.searcher.embedder_for(job.pass).embed_documents(&texts)?;
         let rows: Vec<(String, Vec<f32>)> = batch.iter().map(|stored| stored.content.clone()).zip(vectors).collect();
         store.store_vectors(&key, &rows)?;
         session.mark_changed();
@@ -452,7 +452,7 @@ impl SearchService {
         };
         indexer.scan(&project.root, &FileFilters::default().walk_options()?, progress)?;
         indexer.embed(
-            &mut self.searcher.embedder,
+            self.searcher.embedder_for(Pass::Whole),
             Pass::Whole,
             project.scope.as_deref(),
             progress,

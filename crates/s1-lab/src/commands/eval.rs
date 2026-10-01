@@ -11,7 +11,7 @@ use serde_json::json;
 use s1grep::indexer::{Indexer, Pass};
 use s1grep::models::{ModelDirectory, Retriever};
 use s1grep::project::Project;
-use s1grep::searcher::Searcher;
+use s1grep::searcher::{SearchIndexes, Searcher};
 use s1grep::service::FileFilters;
 use s1grep::settings::SearchSettings;
 
@@ -131,9 +131,19 @@ impl EvalCommand {
             };
             indexer.scan(&project.root, &FileFilters::default().walk_options()?, &mut |_| {})?;
             let pass = if self.outline { Pass::Outline } else { Pass::Whole };
-            indexer.embed(&mut searcher.embedder, pass, None, &mut |_| {})?;
+            indexer.embed(searcher.embedder_for(pass), pass, None, &mut |_| {})?;
             let key = pass.key(self.retriever);
-            let index = VectorIndex::new(store.vector_rows(&key, &key)?);
+            let rows = VectorIndex::new(store.vector_rows(&key, None)?);
+            let index = match pass {
+                Pass::Whole => SearchIndexes {
+                    whole: rows,
+                    outline: VectorIndex::new(Vec::new()),
+                },
+                Pass::Outline => SearchIndexes {
+                    whole: VectorIndex::new(Vec::new()),
+                    outline: rows,
+                },
+            };
             for question in &questions {
                 let answers: Vec<(String, String)> = std::iter::once((&question.path, &question.function))
                     .chain(
@@ -184,7 +194,7 @@ impl EvalCommand {
             eprintln!(
                 "{repository}: {} questions over {} functions",
                 questions.len(),
-                index.len()
+                index.rows().count()
             );
         }
         search_seconds.sort_by(f64::total_cmp);

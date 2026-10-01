@@ -4,7 +4,7 @@
 #
 # Installs the latest release for the current user, without administrator rights: s1grep.exe and the onnxruntime.dll
 # it needs go to %LOCALAPPDATA%\Programs\s1grep, which is added to the user's PATH, and the models are downloaded
-# (about 2.4 GB, once). Every download is checked against the release's SHA256SUMS and the new s1grep.exe is proven to
+# (about 2.9 GB, once). Every download is checked against the release's SHA256SUMS and the new s1grep.exe is proven to
 # run before anything is replaced. Running it again updates s1grep in place.
 #
 # Options, through environment variables when piped into iex:

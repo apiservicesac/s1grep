@@ -3,6 +3,8 @@ use std::time::Instant;
 
 use s1_index::{IndexStore, VectorIndex};
 
+use crate::searcher::SearchIndexes;
+
 use crate::indexer::Pass;
 use crate::models::Retriever;
 use crate::project::Project;
@@ -13,7 +15,7 @@ use crate::settings::IndexSettings;
 pub struct ProjectSession {
     pub project: Project,
     pub store: IndexStore,
-    vectors: Option<VectorIndex>,
+    vectors: Option<SearchIndexes>,
     /// The databases' data versions when the vectors were loaded: another process writing changes them.
     loaded_version: (i64, i64),
     last_used: Instant,
@@ -40,13 +42,15 @@ impl ProjectSession {
     }
 
     /// The project's vectors, reloaded if this process or another one changed them since the last load.
-    pub fn vectors(&mut self, retriever: Retriever) -> anyhow::Result<(&VectorIndex, &IndexStore)> {
+    pub fn vectors(&mut self, retriever: Retriever) -> anyhow::Result<(&SearchIndexes, &IndexStore)> {
         let version = self.store.data_version()?;
         if self.vectors.is_none() || version != self.loaded_version {
-            let rows = self
-                .store
-                .vector_rows(&Pass::Whole.key(retriever), &Pass::Outline.key(retriever))?;
-            self.vectors = Some(VectorIndex::new(rows));
+            let whole = Pass::Whole.key(retriever);
+            let outline = Pass::Outline.key(retriever);
+            self.vectors = Some(SearchIndexes {
+                whole: VectorIndex::new(self.store.vector_rows(&whole, None)?),
+                outline: VectorIndex::new(self.store.vector_rows(&outline, Some(&whole))?),
+            });
             self.loaded_version = version;
         }
         let vectors = self.vectors.as_ref().expect("loaded just above");
