@@ -58,14 +58,22 @@ impl Question {
     const NOUL_TRUE_DEFAULT: &'static str = "yes, the statement holds";
 
     pub fn noul(instructions: impl Into<String>) -> Self {
-        Self::from_json("noul", &serde_json::json!({"type": "noul", "instructions": instructions.into()}))
-            .expect("a noul question with only instructions is always valid")
+        Self::from_json(
+            "noul",
+            &serde_json::json!({"type": "noul", "instructions": instructions.into()}),
+        )
+        .expect("a noul question with only instructions is always valid")
     }
 
     /// Parses `{"type", "instructions", "criteria"?, "labels"?}` with the same rules as Laya.
     pub fn from_json(id: &str, definition: &Value) -> Result<Self, EngineError> {
-        let invalid = |reason: &str| EngineError::InvalidQuestion { id: id.to_string(), reason: reason.to_string() };
-        let fields = definition.as_object().ok_or_else(|| invalid("definition must be an object"))?;
+        let invalid = |reason: &str| EngineError::InvalidQuestion {
+            id: id.to_string(),
+            reason: reason.to_string(),
+        };
+        let fields = definition
+            .as_object()
+            .ok_or_else(|| invalid("definition must be an object"))?;
         let kind_name = fields.get("type").and_then(Value::as_str).unwrap_or_default();
         let kind = QuestionKind::parse(kind_name).ok_or_else(|| invalid("type must be choice, score or noul"))?;
         let instructions = match fields.get("instructions") {
@@ -84,7 +92,11 @@ impl Question {
                 Self::noul_options(criteria, fields.get("labels")).map_err(|reason| invalid(&reason))?
             }
         };
-        Ok(Self { kind, instructions, options })
+        Ok(Self {
+            kind,
+            instructions,
+            options,
+        })
     }
 
     fn is_empty_description(value: &Value) -> bool {
@@ -98,7 +110,10 @@ impl Question {
                 .map(|label| {
                     label
                         .as_str()
-                        .map(|key| AnswerOption { key: key.to_string(), text: key.to_string() })
+                        .map(|key| AnswerOption {
+                            key: key.to_string(),
+                            text: key.to_string(),
+                        })
                         .ok_or_else(|| "choice labels must be strings".to_string())
                 })
                 .collect::<Result<_, _>>()?,
@@ -113,7 +128,12 @@ impl Question {
                     },
                 })
                 .collect(),
-            _ => return Err("a choice question takes 'criteria' as an object of label -> description, or a list of labels".into()),
+            _ => {
+                return Err(
+                    "a choice question takes 'criteria' as an object of label -> description, or a list of labels"
+                        .into(),
+                );
+            }
         };
         if options.is_empty() {
             return Err("a choice question needs at least one criterion".into());
@@ -122,9 +142,9 @@ impl Question {
     }
 
     fn score_options(criteria: &Value) -> Result<Vec<AnswerOption>, String> {
-        let levels = criteria
-            .as_array()
-            .ok_or_else(|| "a score question takes 'criteria' as a list of level descriptions, index 0 first".to_string())?;
+        let levels = criteria.as_array().ok_or_else(|| {
+            "a score question takes 'criteria' as a list of level descriptions, index 0 first".to_string()
+        })?;
         if levels.is_empty() {
             return Err("a score question needs at least one level".into());
         }
@@ -141,8 +161,15 @@ impl Question {
     fn noul_options(criteria: &Value, labels: Option<&Value>) -> Result<Vec<AnswerOption>, String> {
         let descriptions: Map<String, Value> = match criteria {
             Value::Null => Map::new(),
-            Value::Object(entries) => entries.iter().map(|(key, value)| (key.to_lowercase(), value.clone())).collect(),
-            _ => return Err("a noul question takes 'criteria' as an object with optional 'true'/'false' descriptions".into()),
+            Value::Object(entries) => entries
+                .iter()
+                .map(|(key, value)| (key.to_lowercase(), value.clone()))
+                .collect(),
+            _ => {
+                return Err(
+                    "a noul question takes 'criteria' as an object with optional 'true'/'false' descriptions".into(),
+                );
+            }
         };
         if descriptions.keys().any(|key| key != "true" && key != "false") {
             return Err("a noul question takes 'criteria' keyed only 'true'/'false'".into());
@@ -151,7 +178,10 @@ impl Question {
         let render = |label: &str, key: &str, default: &str| {
             let description = descriptions.get(key).filter(|value| !Self::is_empty_description(value));
             let text = description.map(PythonJson::text).unwrap_or_else(|| default.to_string());
-            AnswerOption { key: key.to_string(), text: format!("{label}: {text}") }
+            AnswerOption {
+                key: key.to_string(),
+                text: format!("{label}: {text}"),
+            }
         };
         Ok(vec![
             render(&false_label, "false", Self::NOUL_FALSE_DEFAULT),
@@ -164,8 +194,17 @@ impl Question {
         let Some(labels) = labels else {
             return Ok(("false".into(), "true".into()));
         };
-        let entries = labels.as_object().filter(|entries| entries.len() == 2).ok_or_else(error)?;
-        let label = |key: &str| entries.get(key).and_then(Value::as_str).map(str::trim).map(str::to_string);
+        let entries = labels
+            .as_object()
+            .filter(|entries| entries.len() == 2)
+            .ok_or_else(error)?;
+        let label = |key: &str| {
+            entries
+                .get(key)
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .map(str::to_string)
+        };
         match (label("false"), label("true")) {
             (Some(false_label), Some(true_label))
                 if !false_label.is_empty() && !true_label.is_empty() && false_label != true_label =>
@@ -197,7 +236,9 @@ impl QuestionSet {
     }
 
     pub fn single(id: impl Into<String>, question: Question) -> Self {
-        Self { entries: vec![(id.into(), question)] }
+        Self {
+            entries: vec![(id.into(), question)],
+        }
     }
 
     pub fn push(&mut self, id: impl Into<String>, question: Question) {
@@ -224,23 +265,41 @@ mod tests {
     use super::{Question, QuestionKind};
 
     fn texts(definition: serde_json::Value) -> Vec<String> {
-        Question::from_json("test", &definition).unwrap().options.into_iter().map(|option| option.text).collect()
+        Question::from_json("test", &definition)
+            .unwrap()
+            .options
+            .into_iter()
+            .map(|option| option.text)
+            .collect()
     }
 
     #[test]
     fn renders_choice_score_and_noul_like_laya() {
-        assert_eq!(texts(json!({"type": "choice", "instructions": "x", "criteria": ["a", "b"]})), ["a", "b"]);
         assert_eq!(
-            texts(json!({"type": "choice", "instructions": "x", "criteria": {"a": "first", "b": "", "c": 0, "d": {"k": 1}}})),
+            texts(json!({"type": "choice", "instructions": "x", "criteria": ["a", "b"]})),
+            ["a", "b"]
+        );
+        assert_eq!(
+            texts(
+                json!({"type": "choice", "instructions": "x", "criteria": {"a": "first", "b": "", "c": 0, "d": {"k": 1}}})
+            ),
             ["a: first", "b", "c: 0", "d: {\"k\": 1}"]
         );
-        assert_eq!(texts(json!({"type": "score", "instructions": "x", "criteria": ["low", "high"]})), ["level 0: low", "level 1: high"]);
         assert_eq!(
-            texts(json!({"type": "noul", "instructions": "x"})),
-            ["false: no, the statement does not hold", "true: yes, the statement holds"]
+            texts(json!({"type": "score", "instructions": "x", "criteria": ["low", "high"]})),
+            ["level 0: low", "level 1: high"]
         );
         assert_eq!(
-            texts(json!({"type": "noul", "instructions": "x", "labels": {"false": " no ", "true": "yes"}, "criteria": {"True": "it is"}})),
+            texts(json!({"type": "noul", "instructions": "x"})),
+            [
+                "false: no, the statement does not hold",
+                "true: yes, the statement holds"
+            ]
+        );
+        assert_eq!(
+            texts(
+                json!({"type": "noul", "instructions": "x", "labels": {"false": " no ", "true": "yes"}, "criteria": {"True": "it is"}})
+            ),
             ["no: no, the statement does not hold", "yes: it is"]
         );
     }
@@ -257,7 +316,10 @@ mod tests {
             json!({"type": "choice", "instructions": "x", "criteria": ["a"], "labels": {}}),
         ];
         for definition in rejected {
-            assert!(Question::from_json("test", &definition).is_err(), "accepted {definition}");
+            assert!(
+                Question::from_json("test", &definition).is_err(),
+                "accepted {definition}"
+            );
         }
     }
 

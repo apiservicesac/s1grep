@@ -12,7 +12,9 @@ impl PythonJson {
     pub fn dumps(value: &Value) -> String {
         let mut buffer = Vec::new();
         let mut serializer = serde_json::Serializer::with_formatter(&mut buffer, PythonFormatter);
-        value.serialize(&mut serializer).expect("serializing a JSON value into memory cannot fail");
+        value
+            .serialize(&mut serializer)
+            .expect("serializing a JSON value into memory cannot fail");
         String::from_utf8(buffer).expect("serde_json writes valid UTF-8")
     }
 
@@ -39,7 +41,11 @@ impl PythonFormatter {
         let sign = if negative { "-" } else { "" };
         if !(-4..16).contains(&exponent) {
             let fraction = &digits[1..];
-            let mantissa = if fraction.is_empty() { digits[..1].to_string() } else { format!("{}.{}", &digits[..1], fraction) };
+            let mantissa = if fraction.is_empty() {
+                digits[..1].to_string()
+            } else {
+                format!("{}.{}", &digits[..1], fraction)
+            };
             let exponent_sign = if exponent < 0 { '-' } else { '+' };
             return format!("{sign}{mantissa}e{exponent_sign}{:02}", exponent.abs());
         }
@@ -81,7 +87,8 @@ mod tests {
 
     #[test]
     fn matches_python_separators_and_unicode() {
-        let value = json!({"path": "src/tax.py", "lines": [10, 42], "note": "año ñandú", "nested": {"ok": true, "none": null}});
+        let value =
+            json!({"path": "src/tax.py", "lines": [10, 42], "note": "año ñandú", "nested": {"ok": true, "none": null}});
         assert_eq!(
             PythonJson::dumps(&value),
             r#"{"path": "src/tax.py", "lines": [10, 42], "note": "año ñandú", "nested": {"ok": true, "none": null}}"#
@@ -90,8 +97,17 @@ mod tests {
 
     #[test]
     fn matches_python_float_repr() {
-        let cases = [(1.0, "1.0"), (0.5, "0.5"), (1e-5, "1e-05"), (0.0001, "0.0001"), (1e16, "1e+16"),
-                     (123456789012345.0, "123456789012345.0"), (-2.5e-7, "-2.5e-07"), (0.1, "0.1"), (1.5e300, "1.5e+300")];
+        let cases = [
+            (1.0, "1.0"),
+            (0.5, "0.5"),
+            (1e-5, "1e-05"),
+            (0.0001, "0.0001"),
+            (1e16, "1e+16"),
+            (123456789012345.0, "123456789012345.0"),
+            (-2.5e-7, "-2.5e-07"),
+            (0.1, "0.1"),
+            (1.5e300, "1.5e+300"),
+        ];
         for (number, expected) in cases {
             assert_eq!(PythonJson::dumps(&json!(number)), expected, "repr of {number}");
         }

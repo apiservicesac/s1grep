@@ -64,7 +64,10 @@ impl EmbedderBundle {
             }
         }
         let path = directory.join(Self::CONFIG_FILE);
-        let text = std::fs::read_to_string(&path).map_err(|source| EngineError::Io { path: path.clone(), source })?;
+        let text = std::fs::read_to_string(&path).map_err(|source| EngineError::Io {
+            path: path.clone(),
+            source,
+        })?;
         let config = serde_json::from_str(&text).map_err(|source| EngineError::InvalidJson { path, source })?;
         Ok(Self { directory, config })
     }
@@ -92,11 +95,16 @@ impl Embedder {
             .with_optimization_level(GraphOptimizationLevel::Level3)
             .and_then(|builder| builder.with_intra_threads(threads))
             .map_err(ort::Error::from)?;
-        let session = accelerator.configure(builder)?.commit_from_file(bundle.directory.join(EmbedderBundle::GRAPH_FILE))?;
+        let session = accelerator
+            .configure(builder)?
+            .commit_from_file(bundle.directory.join(EmbedderBundle::GRAPH_FILE))?;
         let mut tokenizer = Tokenizer::from_file(bundle.directory.join(EmbedderBundle::TOKENIZER_FILE))
             .map_err(|error| EngineError::Tokenizer(error.to_string()))?;
         tokenizer
-            .with_truncation(Some(TruncationParams { max_length: bundle.config.max_tokens, ..Default::default() }))
+            .with_truncation(Some(TruncationParams {
+                max_length: bundle.config.max_tokens,
+                ..Default::default()
+            }))
             .map_err(|error| EngineError::Tokenizer(error.to_string()))?;
         tokenizer.with_padding(None);
         let pad_id = bundle
@@ -107,7 +115,13 @@ impl Embedder {
             .chain(Self::PAD_CANDIDATES)
             .find_map(|token| tokenizer.token_to_id(token))
             .ok_or_else(|| EngineError::MissingSpecialToken("<pad>".to_string()))?;
-        Ok(Self { session, tokenizer, config: bundle.config.clone(), pad_id, batch_size: Self::DEFAULT_BATCH })
+        Ok(Self {
+            session,
+            tokenizer,
+            config: bundle.config.clone(),
+            pad_id,
+            batch_size: Self::DEFAULT_BATCH,
+        })
     }
 
     pub fn config(&self) -> &EmbedderConfig {
@@ -165,13 +179,17 @@ impl Embedder {
         ])?;
         let (shape, data) = outputs["last_hidden_state"].try_extract_tensor::<f32>()?;
         if shape.len() != 3 || shape[0] as usize != rows || shape[1] as usize != columns {
-            return Err(EngineError::UnexpectedOutput(format!("last_hidden_state has shape {shape:?}")));
+            return Err(EngineError::UnexpectedOutput(format!(
+                "last_hidden_state has shape {shape:?}"
+            )));
         }
         let width = shape[2] as usize;
         let mut vectors = Vec::with_capacity(rows);
         for row in 0..rows {
             let token = |column: usize| &data[(row * columns + column) * width..(row * columns + column + 1) * width];
-            let real: Vec<usize> = (0..columns).filter(|&column| attention_mask[row * columns + column] == 1).collect();
+            let real: Vec<usize> = (0..columns)
+                .filter(|&column| attention_mask[row * columns + column] == 1)
+                .collect();
             let mut vector = match self.config.pooling {
                 Pooling::Cls => token(real.first().copied().unwrap_or(0)).to_vec(),
                 Pooling::Last => token(real.last().copied().unwrap_or(columns - 1)).to_vec(),

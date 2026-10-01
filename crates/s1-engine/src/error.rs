@@ -15,7 +15,12 @@ pub enum EngineError {
     #[error("invalid question {id:?}: {reason}")]
     InvalidQuestion { id: String, reason: String },
     #[error("question {id:?} has {expected} options but only {fitted} fit in head_max_len={head_max_len}")]
-    OptionsOverflow { id: String, expected: usize, fitted: usize, head_max_len: usize },
+    OptionsOverflow {
+        id: String,
+        expected: usize,
+        fitted: usize,
+        head_max_len: usize,
+    },
     #[error("ONNX Runtime error: {0}")]
     Runtime(#[from] ort::Error),
     #[error("device {0:?} is not available in this build")]

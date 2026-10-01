@@ -42,7 +42,10 @@ impl Accelerator {
             #[cfg(windows)]
             Self::OpenVinoCpu | Self::OpenVinoGpu => {
                 let device = if self == Self::OpenVinoGpu { "GPU" } else { "CPU" };
-                let provider = ort::ep::OpenVINO::default().with_device_type(device).build().error_on_failure();
+                let provider = ort::ep::OpenVINO::default()
+                    .with_device_type(device)
+                    .build()
+                    .error_on_failure();
                 Ok(builder.with_execution_providers([provider]).map_err(ort::Error::from)?)
             }
             #[cfg(not(windows))]
@@ -66,7 +69,10 @@ impl FromStr for Accelerator {
             "directml" => Ok(Self::DirectMl),
             "openvino-cpu" => Ok(Self::OpenVinoCpu),
             "openvino-gpu" => Ok(Self::OpenVinoGpu),
-            _ => Err(format!("unknown device {name:?}; use one of {}", Self::NAMES.join(", "))),
+            _ => Err(format!(
+                "unknown device {name:?}; use one of {}",
+                Self::NAMES.join(", ")
+            )),
         }
     }
 }

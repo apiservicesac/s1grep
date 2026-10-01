@@ -33,7 +33,11 @@ impl SequenceBuilder {
         state_ids: &[u32],
         truncate_left: bool,
     ) -> Result<EncodedQuestion, EngineError> {
-        let head_text = format!("{} question: {}", question.kind.name(), tokenizer.neutralize(&question.instructions));
+        let head_text = format!(
+            "{} question: {}",
+            question.kind.name(),
+            tokenizer.neutralize(&question.instructions)
+        );
         let mut head_ids = tokenizer.encode(&head_text)?;
         let mut option_ids = Vec::with_capacity(question.options.len());
         for option in &question.options {
@@ -84,6 +88,10 @@ impl SequenceBuilder {
                 head_max_len: self.head_max_len,
             });
         }
-        Ok(EncodedQuestion { input_ids, markers, kind_index: question.kind.index() })
+        Ok(EncodedQuestion {
+            input_ids,
+            markers,
+            kind_index: question.kind.index(),
+        })
     }
 }

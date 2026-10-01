@@ -17,8 +17,18 @@ pub struct Answer {
 impl Answer {
     pub fn new(question: &Question, probabilities: Vec<f64>, act_probability: f64) -> Self {
         let concentration = Self::concentration(&probabilities);
-        let probabilities = question.options.iter().map(|option| option.key.clone()).zip(probabilities).collect();
-        Self { kind: question.kind, probabilities, concentration, act_probability }
+        let probabilities = question
+            .options
+            .iter()
+            .map(|option| option.key.clone())
+            .zip(probabilities)
+            .collect();
+        Self {
+            kind: question.kind,
+            probabilities,
+            concentration,
+            act_probability,
+        }
     }
 
     fn concentration(probabilities: &[f64]) -> f64 {
@@ -26,7 +36,10 @@ impl Answer {
         if count < 2 {
             return 1.0;
         }
-        let entropy: f64 = probabilities.iter().map(|probability| -probability * probability.clamp(1e-12, 1.0).ln()).sum();
+        let entropy: f64 = probabilities
+            .iter()
+            .map(|probability| -probability * probability.clamp(1e-12, 1.0).ln())
+            .sum();
         (1.0 - entropy / (count as f64).ln()).clamp(0.0, 1.0)
     }
 
@@ -44,12 +57,19 @@ impl Answer {
 
     /// Expected level of a score question.
     pub fn score(&self) -> f64 {
-        self.probabilities.iter().enumerate().map(|(level, (_, probability))| level as f64 * probability).sum()
+        self.probabilities
+            .iter()
+            .enumerate()
+            .map(|(level, (_, probability))| level as f64 * probability)
+            .sum()
     }
 
     /// P(true) of a noul question.
     pub fn noul(&self) -> f64 {
-        self.probabilities.get(1).map(|(_, probability)| *probability).unwrap_or_default()
+        self.probabilities
+            .get(1)
+            .map(|(_, probability)| *probability)
+            .unwrap_or_default()
     }
 
     /// Probability mass on the reported answer (what calibration guarantees).
@@ -62,15 +82,20 @@ impl Answer {
 
     /// The Jev / Laya response shape for this answer.
     pub fn to_json(&self) -> Value {
-        let probabilities: Map<String, Value> =
-            self.probabilities.iter().map(|(key, probability)| (key.clone(), json!(probability))).collect();
+        let probabilities: Map<String, Value> = self
+            .probabilities
+            .iter()
+            .map(|(key, probability)| (key.clone(), json!(probability)))
+            .collect();
         let action = json!({"act_probability": self.act_probability});
         match self.kind {
             QuestionKind::Choice => json!({"type": "choice", "choice": self.choice(), "probabilities": probabilities,
                                            "confidence": self.confidence(), "action": action}),
             QuestionKind::Score => json!({"type": "score", "score": self.score(), "probabilities": probabilities,
                                           "confidence": self.confidence(), "action": action}),
-            QuestionKind::Noul => json!({"type": "noul", "noul": self.noul(), "confidence": self.confidence(), "action": action}),
+            QuestionKind::Noul => {
+                json!({"type": "noul", "noul": self.noul(), "confidence": self.confidence(), "action": action})
+            }
         }
     }
 }
@@ -84,11 +109,18 @@ pub struct Decision {
 
 impl Decision {
     pub fn answer(&self, question_id: &str) -> Option<&Answer> {
-        self.answers.iter().find(|(id, _)| id == question_id).map(|(_, answer)| answer)
+        self.answers
+            .iter()
+            .find(|(id, _)| id == question_id)
+            .map(|(_, answer)| answer)
     }
 
     pub fn to_json(&self) -> Value {
-        let answers: Map<String, Value> = self.answers.iter().map(|(id, answer)| (id.clone(), answer.to_json())).collect();
+        let answers: Map<String, Value> = self
+            .answers
+            .iter()
+            .map(|(id, answer)| (id.clone(), answer.to_json()))
+            .collect();
         json!({"answers": answers, "usage": {"input_tokens": self.input_tokens, "output_tokens": 0}})
     }
 }

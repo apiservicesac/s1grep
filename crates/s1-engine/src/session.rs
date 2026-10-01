@@ -65,7 +65,9 @@ impl DecisionSession {
     fn rows(value: &ort::value::DynValue, rows: usize) -> Result<Vec<Vec<f32>>, EngineError> {
         let (shape, data) = value.try_extract_tensor::<f32>()?;
         if shape.len() != 2 || shape[0] as usize != rows {
-            return Err(EngineError::UnexpectedOutput(format!("expected {rows} rows, got shape {shape:?}")));
+            return Err(EngineError::UnexpectedOutput(format!(
+                "expected {rows} rows, got shape {shape:?}"
+            )));
         }
         let width = shape[1] as usize;
         Ok(data.chunks(width.max(1)).take(rows).map(<[f32]>::to_vec).collect())

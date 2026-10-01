@@ -23,7 +23,12 @@ pub struct EngineOptions {
 impl Default for EngineOptions {
     fn default() -> Self {
         let logical = std::thread::available_parallelism().map(usize::from).unwrap_or(2);
-        Self { threads: (logical / 2).max(1), accelerator: Accelerator::Cpu, max_len: None, head_max_len: None }
+        Self {
+            threads: (logical / 2).max(1),
+            accelerator: Accelerator::Cpu,
+            max_len: None,
+            head_max_len: None,
+        }
     }
 }
 
@@ -44,7 +49,12 @@ impl LayaEngine {
         };
         let temperatures = Temperatures::from_config(&bundle.config);
         let session = DecisionSession::load(&bundle.graph_path(), options.threads, options.accelerator)?;
-        Ok(Self { tokenizer, builder, temperatures, session })
+        Ok(Self {
+            tokenizer,
+            builder,
+            temperatures,
+            session,
+        })
     }
 
     pub fn tokenizer(&self) -> &LayaTokenizer {
@@ -57,11 +67,16 @@ impl LayaEngine {
 
     /// Encodes every question about `state`, tokenizing the state once.
     pub fn encode(&self, state: &Value, questions: &QuestionSet) -> Result<Vec<EncodedQuestion>, EngineError> {
-        let state_ids = self.tokenizer.encode(&self.tokenizer.neutralize(&PythonJson::text(state)))?;
+        let state_ids = self
+            .tokenizer
+            .encode(&self.tokenizer.neutralize(&PythonJson::text(state)))?;
         let truncate_left = state.is_array();
         questions
             .iter()
-            .map(|(id, question)| self.builder.build(&self.tokenizer, id, question, &state_ids, truncate_left))
+            .map(|(id, question)| {
+                self.builder
+                    .build(&self.tokenizer, id, question, &state_ids, truncate_left)
+            })
             .collect()
     }
 
@@ -77,7 +92,10 @@ impl LayaEngine {
             let option_count = encoded[row].markers.len();
             let temperature = self.temperatures.for_question(question.kind, option_count);
             let probabilities = Self::softmax(&output.logits[row][..option_count], temperature);
-            let act_probability = Self::softmax(&output.act_logits[row], 1.0).first().copied().unwrap_or_default();
+            let act_probability = Self::softmax(&output.act_logits[row], 1.0)
+                .first()
+                .copied()
+                .unwrap_or_default();
             answers.push((id.to_string(), Answer::new(question, probabilities, act_probability)));
         }
         let input_tokens = encoded.iter().map(|item| item.input_ids.len()).sum();
@@ -102,7 +120,10 @@ impl LayaEngine {
                 let option_count = rows[offset].markers.len();
                 let temperature = self.temperatures.for_question(question.kind, option_count);
                 let probabilities = Self::softmax(&output.logits[row][..option_count], temperature);
-                let act_probability = Self::softmax(&output.act_logits[row], 1.0).first().copied().unwrap_or_default();
+                let act_probability = Self::softmax(&output.act_logits[row], 1.0)
+                    .first()
+                    .copied()
+                    .unwrap_or_default();
                 answers.push((id.to_string(), Answer::new(question, probabilities, act_probability)));
             }
             let input_tokens = rows.iter().map(|item| item.input_ids.len()).sum();

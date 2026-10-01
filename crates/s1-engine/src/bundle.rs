@@ -44,15 +44,26 @@ impl ModelBundle {
 
     pub fn open(directory: impl Into<PathBuf>) -> Result<Self, EngineError> {
         let directory = directory.into();
-        for file in [Self::GRAPH_FILE, Self::TOKENIZER_FILE, Self::TOKENIZER_CONFIG_FILE, Self::DECISION_CONFIG_FILE] {
+        for file in [
+            Self::GRAPH_FILE,
+            Self::TOKENIZER_FILE,
+            Self::TOKENIZER_CONFIG_FILE,
+            Self::DECISION_CONFIG_FILE,
+        ] {
             let path = directory.join(file);
             if !path.is_file() {
                 return Err(EngineError::MissingFile(path));
             }
         }
         let config_path = directory.join(Self::DECISION_CONFIG_FILE);
-        let text = std::fs::read_to_string(&config_path).map_err(|source| EngineError::Io { path: config_path.clone(), source })?;
-        let config = serde_json::from_str(&text).map_err(|source| EngineError::InvalidJson { path: config_path, source })?;
+        let text = std::fs::read_to_string(&config_path).map_err(|source| EngineError::Io {
+            path: config_path.clone(),
+            source,
+        })?;
+        let config = serde_json::from_str(&text).map_err(|source| EngineError::InvalidJson {
+            path: config_path,
+            source,
+        })?;
         Ok(Self { directory, config })
     }
 
