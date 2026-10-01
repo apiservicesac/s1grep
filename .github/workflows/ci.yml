@@ -1,0 +1,20 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    name: Format, build and unit tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      # The same Docker images as a developer's machine: ./dev.sh is the only toolchain.
+      - name: Format check
+        run: make fmt-check
+
+      - name: Unit tests
+        run: make test

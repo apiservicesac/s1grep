@@ -16,18 +16,25 @@ Windows (x86-64).
 
 ## Install
 
-1. Download the archive for your system from the [releases](https://github.com/apiservicesac/s1grep/releases) and unpack
-   it. On Windows keep `onnxruntime.dll` next to `s1grep.exe`.
-2. Download the models once (about 2.4 GB, checked with SHA-256):
+Linux (x86-64, glibc 2.38 or newer: Ubuntu 24.04, Debian 13 or newer):
 
-   ```sh
-   s1grep setup
-   ```
-3. Search:
+```sh
+curl -fsSL https://raw.githubusercontent.com/apiservicesac/s1grep/main/install.sh | bash
+```
 
-   ```sh
-   s1grep "where do we retry a failed payment" path/to/repo
-   ```
+It installs `s1grep` into `~/.local/bin` without sudo, checks the download against the release's `SHA256SUMS` and
+downloads the models (about 2.4 GB, once). Options: `--version X.Y.Z`, `--dir DIR`, `--no-models`, `--uninstall`
+(`--purge` also deletes models and indexes).
+
+Update in place, keeping models and indexes:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/apiservicesac/s1grep/main/update.sh | bash
+```
+
+Windows (x86-64): download `s1grep-<version>-x86_64-windows.zip` from the
+[releases](https://github.com/apiservicesac/s1grep/releases), keep `onnxruntime.dll` next to `s1grep.exe`, and run
+`s1grep setup` once.
 
 ## How it works
 
@@ -135,19 +142,27 @@ Both can also be rebuilt from the original checkpoints with `tools/model-export`
 
 ## Development
 
-Everything runs in Docker through `./dev.sh`; nothing is installed on the host.
+Everything runs in Docker through `./dev.sh` and `make`; nothing else is installed on the host.
 
 ```sh
-./dev.sh export uv sync                                        # Python environment of the export tool
-./dev.sh export python -m model_export export                  # models/laya-multilingual (FP32 ONNX bundle)
-./dev.sh export python -m model_export fixtures                # parity fixtures from the Python runtimes
-./dev.sh cargo test --release                                  # unit and parity tests
-./dev.sh cargo build --release -p s1grep                       # target/release/s1grep
-./dev.sh windows build --release -p s1grep                     # s1grep.exe
+make build          # target/release/s1grep
+make test           # unit tests
+make test-parity    # Rust against the Python reference (needs the models in models/)
+make fmt            # format the code
+make dist           # Linux and Windows archives with SHA256SUMS in dist/<version>
+make install        # copy the build into ~/.local/bin
 ```
 
 The parity tests check that the Rust engine reproduces the Python runtimes: token for token for Laya sequences,
-within 6e-4 for answers, and cosine 0.999 or more for embeddings.
+within 6e-4 for answers, and cosine 0.999 or more for embeddings. `tools/model-export` (`./dev.sh export …`) exports
+the models to ONNX and records those fixtures.
+
+### Releasing
+
+1. Describe the release in `CHANGELOG.md` under `## [X.Y.Z]`, commit and push.
+2. `make bump-patch`, `make bump-minor`, `make bump-major` or `make bump VERSION=X.Y.Z` sets the version in
+   `Cargo.toml`, commits, tags `X.Y.Z` and pushes.
+3. The Release workflow builds the Linux and Windows archives and publishes them with `install.sh` and `update.sh`.
 
 ## License
 
