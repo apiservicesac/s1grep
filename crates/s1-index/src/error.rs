@@ -10,4 +10,12 @@ pub enum IndexError {
     Parser(String),
     #[error("invalid exclude pattern {0}")]
     Pattern(String),
+    #[error(
+        "the {database} database has schema version {found}, newer than the {supported} this s1grep knows; update s1grep"
+    )]
+    NewerSchema {
+        database: &'static str,
+        found: usize,
+        supported: usize,
+    },
 }

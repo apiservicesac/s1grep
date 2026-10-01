@@ -1,4 +1,5 @@
 pub mod doctor;
+pub mod gc;
 pub mod index;
 pub mod mcp;
 pub mod search;

@@ -2,6 +2,7 @@
 //! binary and the `s1-lab` development tools.
 
 pub mod backend;
+pub mod cache;
 pub mod commands;
 pub mod hub;
 pub mod indexer;

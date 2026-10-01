@@ -108,10 +108,7 @@ impl EvalCommand {
             let root = self.repository_root(&repository)?;
             let questions: Vec<ExamQuestion> = serde_json::from_str(&std::fs::read_to_string(&exam_file)?)
                 .with_context(|| format!("parsing {}", exam_file.display()))?;
-            let project = Project {
-                root: std::fs::canonicalize(&root)?,
-                scope: None,
-            };
+            let project = Project::at_root(&root)?;
             let mut store = project.open_store()?;
             let mut indexer = Indexer {
                 store: &mut store,
@@ -121,7 +118,7 @@ impl EvalCommand {
             let pass = if self.outline { Pass::Outline } else { Pass::Whole };
             indexer.embed(&mut searcher.embedder, pass, None, &mut |_| {})?;
             let key = pass.key(self.retriever);
-            let units = store.searchable_units(key, key, None)?;
+            let units = store.searchable_units(&key, &key, None)?;
             for question in &questions {
                 let answers: Vec<(String, String)> = std::iter::once((&question.path, &question.function))
                     .chain(

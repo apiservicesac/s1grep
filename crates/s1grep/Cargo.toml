@@ -20,6 +20,7 @@ sha2 = "0.10"
 getrandom = "0.3"
 indicatif = "0.18"
 console = "0.16"
+dunce = "1"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

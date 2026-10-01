@@ -25,9 +25,10 @@ impl ServeCommand {
     /// Loads the models once and answers searches; in the foreground until Ctrl+C, in the background until idle.
     pub fn run(self) -> anyhow::Result<()> {
         let started = Instant::now();
+        let lock = SearchServer::acquire_lock()?;
         let service = SearchService::load(&self.models, true, self.threads)?;
         let idle = self.background.then_some(ServerSettings::IDLE);
-        let server = SearchServer::start(service, self.port, idle)?;
+        let server = SearchServer::start(service, lock, self.port, idle)?;
         eprintln!(
             "s1grep: models loaded in {:.1} s, listening on 127.0.0.1:{}{}",
             started.elapsed().as_secs_f64(),

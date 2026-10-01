@@ -109,3 +109,56 @@ impl SourceWalker {
         )
     }
 }
+
+/// One-off exclude patterns applied to results, not to the index: excluding a folder for one search must not remove
+/// it from the index other searches share.
+pub struct PathExcludes {
+    matcher: Option<ignore::overrides::Override>,
+}
+
+impl PathExcludes {
+    pub fn new(root: &Path, patterns: &[String]) -> Result<Self, IndexError> {
+        if patterns.is_empty() {
+            return Ok(Self { matcher: None });
+        }
+        let mut builder = OverrideBuilder::new(root);
+        for pattern in patterns {
+            builder
+                .add(&format!("!{pattern}"))
+                .map_err(|error| IndexError::Pattern(format!("{pattern}: {error}")))?;
+        }
+        let matcher = builder
+            .build()
+            .map_err(|error| IndexError::Pattern(error.to_string()))?;
+        Ok(Self { matcher: Some(matcher) })
+    }
+
+    /// Whether a unit at `relative` (a path under the root with `/` separators) is excluded, by its own path or by one
+    /// of its folders.
+    pub fn excludes(&self, relative: &str) -> bool {
+        let Some(matcher) = &self.matcher else {
+            return false;
+        };
+        let path = Path::new(relative);
+        path.ancestors()
+            .filter(|ancestor| !ancestor.as_os_str().is_empty())
+            .any(|ancestor| matcher.matched(ancestor, ancestor != path).is_ignore())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use super::PathExcludes;
+
+    #[test]
+    fn excludes_a_folder_and_what_is_inside_it() {
+        let excludes =
+            PathExcludes::new(Path::new("/project"), &["legacy/".to_string(), "*_old.py".to_string()]).unwrap();
+        assert!(excludes.excludes("legacy/billing/invoice.py"));
+        assert!(excludes.excludes("app/report_old.py"));
+        assert!(!excludes.excludes("app/legacy_report.py"));
+        assert!(!excludes.excludes("app/invoice.py"));
+    }
+}

@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use anyhow::Context;
-use s1_index::WalkOptions;
+use s1_index::{PathExcludes, WalkOptions};
 use serde::{Deserialize, Serialize};
 
 use crate::indexer::{Indexer, Pass};
@@ -12,18 +12,20 @@ use crate::project::{IndexLock, Project};
 use crate::searcher::{FoundBy, Searcher};
 use crate::settings::{ConfigDirectory, IndexSettings, SearchSettings};
 
-/// Which files a search reads: the ignore files decide, plus one-off patterns from the caller.
+/// Which files a search reads: the ignore files decide what is indexed, and one-off patterns from the caller hide
+/// results of this search only, without touching the index other searches share.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct FileFilters {
     pub excludes: Vec<String>,
 }
 
 impl FileFilters {
+    /// What the index holds: the ignore files only.
     pub fn walk_options(&self) -> anyhow::Result<WalkOptions> {
         Ok(WalkOptions {
             global_ignore: Some(ConfigDirectory::ignore_file()?),
             folder_ignore_name: IndexSettings::FOLDER_IGNORE_FILE.to_string(),
-            excludes: self.excludes.clone(),
+            excludes: Vec::new(),
             maximum_file_bytes: IndexSettings::MAXIMUM_FILE_BYTES,
             extensions: IndexSettings::EXTENSIONS.iter().map(ToString::to_string).collect(),
         })
@@ -44,7 +46,7 @@ pub struct SearchRequest {
 
 impl SearchRequest {
     pub fn new(query: &str, target: &Path, top: usize, judge_top: usize, filters: FileFilters) -> anyhow::Result<Self> {
-        let target = std::fs::canonicalize(target).with_context(|| format!("{} does not exist", target.display()))?;
+        let target = dunce::canonicalize(target).with_context(|| format!("{} does not exist", target.display()))?;
         if !target.is_dir() {
             anyhow::bail!("{} is not a folder", target.display());
         }
@@ -122,6 +124,8 @@ struct IndexingJob {
     first_step: Option<Instant>,
     done: usize,
     total: usize,
+    /// Consecutive failed steps; the job is dropped after `IndexSettings::JOB_ATTEMPTS` of them.
+    failures: u32,
 }
 
 impl IndexingJob {
@@ -164,11 +168,12 @@ impl SearchService {
         let project = Project::locate(&request.target)?;
         let scope = project.scope.as_deref();
         let mut store = project.open_store()?;
+        project.record_use()?;
         let has_job = self.jobs.iter().any(|job| job.project.root == project.root);
         let lock = if has_job {
             None
         } else {
-            match IndexLock::acquire(&project.root)? {
+            match IndexLock::acquire(&project.folder)? {
                 Ok(lock) => Some(lock),
                 Err(holder) => {
                     progress(IndexEvent::Busy { pid: holder });
@@ -184,17 +189,29 @@ impl SearchService {
                 retriever: self.retriever,
             };
             indexer.scan(&project.root, &request.filters.walk_options()?, progress)?;
-            let pending = indexer.store.pending_count(whole, scope)?;
+            let pending = indexer.store.pending_count(&whole, scope)?;
             if pending > 0 && pending <= IndexSettings::INDEX_BEFORE_ANSWERING {
                 indexer.embed(&mut self.searcher.embedder, Pass::Whole, scope, progress)?;
-            } else if pending > 0 {
-                indexer.embed(&mut self.searcher.embedder, Pass::Outline, scope, progress)?;
-                let total = indexer.store.pending_count(whole, None)?;
+            } else if pending > 0 && !has_job {
+                // Only the first search waits, briefly; later ones answer at once while the background works.
+                indexer.embed_for(
+                    &mut self.searcher.embedder,
+                    Pass::Outline,
+                    scope,
+                    Some(IndexSettings::OUTLINE_BEFORE_ANSWERING),
+                    progress,
+                )?;
+            }
+            // Whatever is still missing, here or elsewhere in the project, is left to the background process.
+            let total = indexer.store.pending_count(&whole, None)?;
+            if total > 0 {
                 self.schedule(&project, lock, total);
             }
         }
-        let coverage = store.coverage(whole, scope)?;
-        let units = store.searchable_units(whole, outline, scope)?;
+        let coverage = store.coverage(&whole, scope)?;
+        let excludes = PathExcludes::new(&project.root, &request.filters.excludes)?;
+        let mut units = store.searchable_units(&whole, &outline, scope)?;
+        units.retain(|searchable| !excludes.excludes(&searchable.stored.unit.path));
         let judged = if self.searcher.has_judge() {
             request.judge_top
         } else {
@@ -203,6 +220,7 @@ impl SearchService {
         let started = Instant::now();
         let hits = self.searcher.search(&request.query, &units, judged)?;
         let search_seconds = started.elapsed().as_secs_f64();
+        let judged = hits.iter().filter(|hit| hit.judge.is_some()).count();
         let results = hits
             .into_iter()
             .take(request.top)
@@ -231,7 +249,7 @@ impl SearchService {
                 .iter()
                 .find(|job| job.project.root == project.root)
                 .map(IndexingJob::progress),
-            judged: judged.min(coverage.units),
+            judged,
             search_seconds,
             results,
         })
@@ -256,6 +274,7 @@ impl SearchService {
                 first_step: None,
                 done: 0,
                 total,
+                failures: 0,
             });
         }
     }
@@ -265,17 +284,40 @@ impl SearchService {
     }
 
     /// Embeds one short batch of the oldest indexing job, so that searches never wait long for the background work.
+    /// A job that keeps failing (an index deleted under it, a full disk) is dropped instead of retried forever.
     pub fn index_step(&mut self) -> anyhow::Result<()> {
+        let result = self.step_oldest_job();
+        if let Some(job) = self.jobs.first_mut() {
+            match &result {
+                Ok(()) => job.failures = 0,
+                Err(_) => job.failures += 1,
+            }
+            if job.failures >= IndexSettings::JOB_ATTEMPTS {
+                let dropped = self.jobs.remove(0);
+                return result.with_context(|| {
+                    format!(
+                        "stopped indexing {} after {} failures; the next search there tries again",
+                        dropped.project.root.display(),
+                        IndexSettings::JOB_ATTEMPTS
+                    )
+                });
+            }
+        }
+        result
+    }
+
+    fn step_oldest_job(&mut self) -> anyhow::Result<()> {
         let Some(job) = self.jobs.first_mut() else {
             return Ok(());
         };
         let mut store = job.project.open_store()?;
+        let key = job.pass.key(self.retriever);
         if job.queue.is_empty() {
             let batch = match job.pass {
                 Pass::Outline => IndexSettings::BACKGROUND_OUTLINE_QUEUE,
                 Pass::Whole => IndexSettings::BACKGROUND_QUEUE,
             };
-            job.queue = store.pending_units(job.pass.key(self.retriever), job.project.scope.as_deref(), batch)?;
+            job.queue = store.pending_units_scope_first(&key, job.project.scope.as_deref(), batch)?;
             job.queue.reverse();
         }
         if job.queue.is_empty() {
@@ -292,7 +334,7 @@ impl SearchService {
             return Ok(());
         }
         let take = match job.pass {
-            Pass::Outline => IndexSettings::OUTLINE_BATCH,
+            Pass::Outline => IndexSettings::BACKGROUND_OUTLINE_BATCH,
             Pass::Whole => IndexSettings::BACKGROUND_BATCH,
         }
         .min(job.queue.len());
@@ -300,7 +342,7 @@ impl SearchService {
         let texts: Vec<String> = batch.iter().map(|stored| job.pass.text(&stored.unit)).collect();
         let vectors = self.searcher.embedder.embed_documents(&texts)?;
         let rows: Vec<(String, Vec<f32>)> = batch.iter().map(|stored| stored.content.clone()).zip(vectors).collect();
-        store.store_vectors(job.pass.key(self.retriever), &rows)?;
+        store.store_vectors(&key, &rows)?;
         if job.pass == Pass::Whole {
             job.first_step.get_or_insert_with(Instant::now);
             job.done += rows.len();
@@ -309,15 +351,10 @@ impl SearchService {
     }
 
     /// Brings a whole project up to date, for `s1grep index`.
-    pub fn index(
-        &mut self,
-        target: &Path,
-        filters: &FileFilters,
-        progress: &mut dyn FnMut(IndexEvent),
-    ) -> anyhow::Result<Project> {
+    pub fn index(&mut self, target: &Path, progress: &mut dyn FnMut(IndexEvent)) -> anyhow::Result<Project> {
         let project = Project::locate(target)?;
         let mut store = project.open_store()?;
-        let Ok(index_lock) = IndexLock::acquire(&project.root)? else {
+        let Ok(index_lock) = IndexLock::acquire(&project.folder)? else {
             anyhow::bail!(
                 "another s1grep is indexing {} right now; `s1grep status` shows its progress",
                 project.root.display()
@@ -327,7 +364,7 @@ impl SearchService {
             store: &mut store,
             retriever: self.retriever,
         };
-        indexer.scan(&project.root, &filters.walk_options()?, progress)?;
+        indexer.scan(&project.root, &FileFilters::default().walk_options()?, progress)?;
         indexer.embed(
             &mut self.searcher.embedder,
             Pass::Whole,

@@ -1,10 +1,10 @@
-use std::path::PathBuf;
-
 use clap::Args;
 use s1_index::IndexStore;
 
+use crate::cache::{CacheDirectory, ProjectFolder};
 use crate::hub::ModelInstaller;
-use crate::models::{CacheDirectory, ModelDirectory, Retriever};
+use crate::indexer::Pass;
+use crate::models::{ModelDirectory, Retriever};
 use crate::progress::{ProgressDisplay, Units};
 use crate::project::IndexLock;
 use crate::server::ServerClient;
@@ -97,19 +97,19 @@ impl StatusCommand {
     }
 
     fn projects() -> anyhow::Result<Vec<ProjectState>> {
+        let whole = Pass::Whole.key(Retriever::Granite);
         let mut projects = Vec::new();
-        for index in CacheDirectory::project_indexes()? {
-            let Ok(store) = IndexStore::open(&index, &CacheDirectory::vectors()?) else {
+        for folder in ProjectFolder::all()? {
+            let Some(info) = folder.info() else { continue };
+            let Ok(store) = IndexStore::open(&folder.catalog(), &CacheDirectory::vectors()?) else {
                 continue;
             };
-            let Some(root) = store.meta("root")? else { continue };
-            let coverage = store.coverage(Retriever::Granite.key(), None)?;
-            let indexing = IndexLock::is_held(&PathBuf::from(&root));
+            let coverage = store.coverage(&whole, None)?;
             projects.push(ProjectState {
-                root,
+                root: info.root,
                 functions: coverage.units,
                 embedded: coverage.embedded,
-                indexing,
+                indexing: IndexLock::is_held(&folder),
             });
         }
         projects.sort_by(|left, right| left.root.cmp(&right.root));

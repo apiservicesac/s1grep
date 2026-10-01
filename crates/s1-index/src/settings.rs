@@ -14,6 +14,12 @@ impl IndexLimits {
     /// signature and the start of the docstring), at most this many characters.
     pub const OUTLINE_LINES: usize = 2;
     pub const OUTLINE_CHARACTERS: usize = 160;
+    /// Versions of the texts the retriever embeds (`CodeUnit::document_text` and `outline_text`, with the outline
+    /// limits above). Change one whenever its text changes: vectors of the old text then stop being used.
+    pub const WHOLE_TEXT_FORMAT: &'static str = "whole-v1";
+    pub const OUTLINE_TEXT_FORMAT: &'static str = "outline-v1";
+    /// Characters of a model revision kept in an embedding space key.
+    pub const SPACE_REVISION_LENGTH: usize = 12;
     /// Hex characters kept from the blake3 hash that identifies a unit's content.
     pub const CONTENT_KEY_LENGTH: usize = 32;
     /// How long a write waits for another process holding the index database.

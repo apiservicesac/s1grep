@@ -42,13 +42,20 @@ impl IndexSettings {
     /// A search waits for whole-source vectors only when this few functions miss one (seconds of work); a larger
     /// project gets outline vectors first, is searched with them, and gets the rest in the background.
     pub const INDEX_BEFORE_ANSWERING: usize = 64;
+    /// Longest a search spends on outline vectors before answering; the background process does the rest, and the
+    /// answer says how many functions could not be searched yet.
+    pub const OUTLINE_BEFORE_ANSWERING: Duration = Duration::from_secs(10);
     /// Functions the background process embeds between two looks for new searches (a few seconds of work).
     pub const BACKGROUND_BATCH: usize = 8;
+    /// Outlines the background process embeds per step; short, so a search waits at most a second or two.
+    pub const BACKGROUND_OUTLINE_BATCH: usize = 32;
     /// Functions the background process fetches from the index at a time, so it does not query it for every batch.
     pub const BACKGROUND_QUEUE: usize = 512;
     pub const BACKGROUND_OUTLINE_QUEUE: usize = 2048;
     /// Functions to embed in the background before the time left is estimated; earlier guesses swing wildly.
     pub const ESTIMATE_AFTER: usize = 64;
+    /// Consecutive failed background steps before a project's indexing job is dropped.
+    pub const JOB_ATTEMPTS: u32 = 3;
     /// Files written to the index per transaction while reading a project.
     pub const SCAN_COMMIT_EVERY: usize = 500;
     /// Files read between two progress reports.
@@ -75,6 +82,8 @@ impl ServerSettings {
     pub const INFO_FILE: &'static str = "server.json";
     pub const LOCK_FILE: &'static str = "server.lock";
     pub const LOG_FILE: &'static str = "server.log";
+    /// Pause after a failed background indexing step before the next try.
+    pub const INDEX_RETRY_PAUSE: Duration = Duration::from_secs(5);
 }
 
 /// Terminal output.
@@ -126,6 +135,13 @@ pub struct ModelSettings;
 impl ModelSettings {
     pub const JUDGE_BUNDLE: &'static str = "s1-code-v3-onnx";
     pub const RETRIEVER_BUNDLE: &'static str = "granite-278m-onnx";
+    /// The retriever's identity in embedding space keys: vectors from another model, revision or size never mix.
+    pub const RETRIEVER_MODEL: &'static str = "granite-embedding-278m-multilingual";
+    pub const RETRIEVER_REVISION: &'static str = "b795cbc00b23bcaafbbbba6b242448104cc62ec0";
+    pub const RETRIEVER_DIMENSION: usize = 768;
+    /// Keys the vectors of s1grep 0.2.4 and earlier were stored under: whole sources and outlines of this retriever.
+    pub const LEGACY_WHOLE_SPACE: &'static str = "granite";
+    pub const LEGACY_OUTLINE_SPACE: &'static str = "granite-outline";
     pub const HUB: &'static str = "https://huggingface.co";
     /// Bytes read from the network at a time while downloading and hashing a model file.
     pub const DOWNLOAD_BUFFER_BYTES: usize = 1 << 20;
@@ -171,7 +187,7 @@ impl ModelSettings {
         ModelRelease {
             bundle: Self::RETRIEVER_BUNDLE,
             repository: "api-service-sac/granite-embedding-278m-multilingual-onnx",
-            revision: "b795cbc00b23bcaafbbbba6b242448104cc62ec0",
+            revision: Self::RETRIEVER_REVISION,
             files: &[
                 ModelFile {
                     path: "embedder_config.json",
@@ -221,7 +237,16 @@ impl CacheSettings {
     pub const APPLICATION_FOLDER: &'static str = "s1grep";
     pub const MODELS: &'static str = "models";
     pub const PROJECTS: &'static str = "projects";
-    pub const PROJECT_EXTENSION: &'static str = "sqlite";
+    /// Inside each project's folder.
+    pub const CATALOG: &'static str = "catalog.sqlite";
+    pub const PROJECT_INFO: &'static str = "project.json";
+    pub const LOCK: &'static str = "lock";
+    pub const LOCK_HOLDER: &'static str = "lock.pid";
+    /// The layout of s1grep 0.2.4 and earlier: `projects/<key>.sqlite` and `projects/<key>.lock`.
+    pub const LEGACY_INDEX_EXTENSION: &'static str = "sqlite";
+    pub const LEGACY_LOCK_EXTENSION: &'static str = "lock";
+    /// Files SQLite keeps next to a database in WAL mode.
+    pub const SQLITE_SIDE_FILES: [&'static str; 2] = ["-wal", "-shm"];
     pub const VECTORS: &'static str = "vectors.sqlite";
     /// Hex characters of the path fingerprint that names a project's index.
     pub const PROJECT_KEY_LENGTH: usize = 16;

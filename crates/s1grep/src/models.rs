@@ -1,9 +1,12 @@
 use std::path::PathBuf;
 
-use anyhow::{Context, bail};
+use anyhow::bail;
 use clap::{Args, ValueEnum};
 
-use crate::settings::{CacheSettings, ModelSettings};
+use s1_index::EmbeddingSpace;
+
+use crate::cache::CacheDirectory;
+use crate::settings::ModelSettings;
 
 /// Which embedding model finds the candidates.
 #[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq)]
@@ -23,7 +26,7 @@ impl Retriever {
         }
     }
 
-    /// Name stored next to each vector in the index, so both retrievers can share one index.
+    /// Short name, for the fusion weights tuned per retriever.
     pub fn key(self) -> &'static str {
         match self {
             Self::Granite => "granite",
@@ -31,11 +34,21 @@ impl Retriever {
         }
     }
 
-    /// Name stored next to the vectors of function outlines, the quick first pass over a large project.
-    pub fn outline_key(self) -> &'static str {
+    /// The space of this retriever's vectors of one kind of text.
+    pub fn space(self, text_format: &'static str) -> EmbeddingSpace {
         match self {
-            Self::Granite => "granite-outline",
-            Self::Qwen3 => "qwen3-outline",
+            Self::Granite => EmbeddingSpace {
+                model: ModelSettings::RETRIEVER_MODEL,
+                revision: ModelSettings::RETRIEVER_REVISION,
+                dimension: ModelSettings::RETRIEVER_DIMENSION,
+                text_format,
+            },
+            Self::Qwen3 => EmbeddingSpace {
+                model: "qwen3-embedding-0.6b",
+                revision: "unpinned",
+                dimension: 1024,
+                text_format,
+            },
         }
     }
 
@@ -63,7 +76,7 @@ impl ModelDirectory {
     pub fn resolved(&self) -> anyhow::Result<PathBuf> {
         match &self.folder {
             Some(folder) => Ok(folder.clone()),
-            None => Ok(CacheDirectory::root()?.join(CacheSettings::MODELS)),
+            None => CacheDirectory::models(),
         }
     }
 
@@ -77,56 +90,5 @@ impl ModelDirectory {
             );
         }
         Ok(directory)
-    }
-}
-
-/// The per-user cache: `$XDG_CACHE_HOME/s1grep`, or `~/.cache/s1grep` (`%LOCALAPPDATA%\s1grep` on Windows).
-pub struct CacheDirectory;
-
-impl CacheDirectory {
-    pub fn root() -> anyhow::Result<PathBuf> {
-        if let Some(cache) = std::env::var_os("XDG_CACHE_HOME") {
-            return Ok(PathBuf::from(cache).join(CacheSettings::APPLICATION_FOLDER));
-        }
-        if let Some(local) = std::env::var_os("LOCALAPPDATA") {
-            return Ok(PathBuf::from(local).join(CacheSettings::APPLICATION_FOLDER));
-        }
-        let home = std::env::var_os("HOME").context("HOME is not set")?;
-        Ok(PathBuf::from(home)
-            .join(".cache")
-            .join(CacheSettings::APPLICATION_FOLDER))
-    }
-
-    /// One index per project, named after a hash of its absolute path, so indexing never writes into the project.
-    pub fn project_index(root: &std::path::Path) -> anyhow::Result<PathBuf> {
-        let key = s1_index::ContentFingerprint::of(root.to_string_lossy().as_bytes());
-        Ok(Self::root()?.join(CacheSettings::PROJECTS).join(format!(
-            "{}.{}",
-            &key[..CacheSettings::PROJECT_KEY_LENGTH],
-            CacheSettings::PROJECT_EXTENSION
-        )))
-    }
-
-    /// Vectors shared by every project, keyed by the content they were computed from.
-    pub fn vectors() -> anyhow::Result<PathBuf> {
-        Ok(Self::root()?.join(CacheSettings::VECTORS))
-    }
-
-    /// Every project index in the cache.
-    pub fn project_indexes() -> anyhow::Result<Vec<PathBuf>> {
-        let folder = Self::root()?.join(CacheSettings::PROJECTS);
-        let Ok(entries) = std::fs::read_dir(&folder) else {
-            return Ok(Vec::new());
-        };
-        let mut paths: Vec<PathBuf> = entries
-            .filter_map(Result::ok)
-            .map(|entry| entry.path())
-            .filter(|path| {
-                path.extension()
-                    .is_some_and(|extension| extension == CacheSettings::PROJECT_EXTENSION)
-            })
-            .collect();
-        paths.sort();
-        Ok(paths)
     }
 }

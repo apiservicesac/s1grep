@@ -92,7 +92,7 @@ impl TextReport<'_> {
         let absolute = self.response.root.join(relative);
         let current = std::env::current_dir()
             .ok()
-            .and_then(|folder| std::fs::canonicalize(folder).ok());
+            .and_then(|folder| dunce::canonicalize(folder).ok());
         match current.as_deref().and_then(|folder| absolute.strip_prefix(folder).ok()) {
             Some(path) if path != Path::new("") => path.display().to_string(),
             _ => absolute.display().to_string(),

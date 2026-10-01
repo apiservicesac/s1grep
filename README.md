@@ -108,9 +108,12 @@ s1grep "export rows to csv" . --json                     # machine-readable, for
 | `s1grep mcp` | Runs as an MCP server with one tool, `search_code`, for coding agents |
 | `s1grep skill --install` | Installs the Claude Code skill that tells agents when to use s1grep |
 | `s1grep index [PATH]` | Indexes a large repository ahead of the first search |
+| `s1grep gc` | Removes indexes of folders that no longer exist and vectors nothing uses (`--dry-run` to preview) |
 
-The first search in a project builds its index, with a progress bar and the time left (about 2 minutes per 1,500
-functions on an 8-core CPU). Later searches only re-read files whose size or date changed. Searching a subfolder reuses
+The first search in a project builds its index, with a progress bar. In a large project it waits at most about 10 s
+for quick outline vectors (path, name and signature), answers with what is ready and says how much is still pending;
+the background process indexes the rest and results improve as it goes. Later searches only re-read files whose size
+or date changed. Searching a subfolder reuses
 the index of its project, and functions shared by several projects are embedded once.
 
 ### Choosing what is searched

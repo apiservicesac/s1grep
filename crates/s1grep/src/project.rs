@@ -1,11 +1,11 @@
 use std::fs::{File, OpenOptions, TryLockError};
-use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, bail};
-use s1_index::IndexStore;
+use s1_index::{IndexError, IndexStore};
 
-use crate::models::CacheDirectory;
+use crate::cache::{CacheDirectory, ProjectFolder};
+use crate::settings::CacheSettings;
 
 /// The project a search belongs to: the folder whose index it uses, and the part of it the search covers.
 ///
@@ -16,17 +16,18 @@ pub struct Project {
     pub root: PathBuf,
     /// The searched folder relative to the root, with `/` separators; `None` for the whole project.
     pub scope: Option<String>,
+    pub folder: ProjectFolder,
 }
 
 impl Project {
     pub fn locate(path: &Path) -> anyhow::Result<Self> {
-        let target = std::fs::canonicalize(path).with_context(|| format!("{} does not exist", path.display()))?;
+        let target = dunce::canonicalize(path).with_context(|| format!("{} does not exist", path.display()))?;
         if !target.is_dir() {
             bail!("{} is not a folder", target.display());
         }
         let mut indexed = None;
         for ancestor in target.ancestors() {
-            if CacheDirectory::project_index(ancestor)?.is_file() {
+            if ProjectFolder::exists_for(ancestor)? {
                 indexed = Some(ancestor.to_path_buf());
             }
         }
@@ -46,12 +47,39 @@ impl Project {
                 .collect::<Vec<_>>()
                 .join("/")
         });
-        Ok(Self { root, scope })
+        let folder = ProjectFolder::for_root(&root)?;
+        Ok(Self { root, scope, folder })
     }
 
+    /// The project rooted exactly at `root`, without looking for an enclosing index or repository.
+    pub fn at_root(root: &Path) -> anyhow::Result<Self> {
+        let root = dunce::canonicalize(root).with_context(|| format!("{} does not exist", root.display()))?;
+        let folder = ProjectFolder::for_root(&root)?;
+        Ok(Self {
+            root,
+            scope: None,
+            folder,
+        })
+    }
+
+    /// Records that the project was searched now, for `status` and the clean-up of unused indexes.
+    pub fn record_use(&self) -> anyhow::Result<()> {
+        self.folder.record_use(&self.root)
+    }
+
+    /// Opens the project's index, creating or migrating it. A catalog written
+    /// by a newer s1grep is rebuilt: it holds only what a scan recreates, while vectors live in the shared cache.
     pub fn open_store(&self) -> anyhow::Result<IndexStore> {
-        let store = IndexStore::open(&CacheDirectory::project_index(&self.root)?, &CacheDirectory::vectors()?)?;
-        store.set_meta("root", &self.root.to_string_lossy())?;
+        let vectors = CacheDirectory::vectors()?;
+        let store = match IndexStore::open(&self.folder.catalog(), &vectors) {
+            Err(IndexError::NewerSchema { database: "main", .. }) => {
+                for suffix in std::iter::once("").chain(CacheSettings::SQLITE_SIDE_FILES) {
+                    let _ = std::fs::remove_file(format!("{}{suffix}", self.folder.catalog().display()));
+                }
+                IndexStore::open(&self.folder.catalog(), &vectors)?
+            }
+            other => other?,
+        };
         Ok(store)
     }
 
@@ -71,36 +99,42 @@ pub struct IndexLock {
 
 impl IndexLock {
     /// The lock, or the process id of the process that holds it.
-    pub fn acquire(root: &Path) -> anyhow::Result<Result<Self, Option<u32>>> {
-        let path = CacheDirectory::project_index(root)?.with_extension("lock");
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
-        let mut file = OpenOptions::new()
+    pub fn acquire(folder: &ProjectFolder) -> anyhow::Result<Result<Self, Option<u32>>> {
+        std::fs::create_dir_all(&folder.path).with_context(|| format!("creating {}", folder.path.display()))?;
+        let file = OpenOptions::new()
             .create(true)
             .truncate(false)
-            .read(true)
             .write(true)
-            .open(&path)?;
+            .open(folder.lock_file())?;
         match file.try_lock() {
             Ok(()) => {
-                file.set_len(0)?;
-                write!(file, "{}", std::process::id())?;
+                std::fs::write(folder.holder_file(), std::process::id().to_string())?;
                 Ok(Ok(Self { file }))
             }
-            Err(TryLockError::WouldBlock) => {
-                let holder = std::fs::read_to_string(&path)
-                    .ok()
-                    .and_then(|text| text.trim().parse().ok());
-                Ok(Err(holder))
-            }
+            Err(TryLockError::WouldBlock) => Ok(Err(Self::holder(folder))),
             Err(TryLockError::Error(error)) => Err(error).context("locking the index"),
         }
     }
 
-    /// Whether some process is indexing `root` right now.
-    pub fn is_held(root: &Path) -> bool {
-        matches!(Self::acquire(root), Ok(Err(_)))
+    /// Whether some process is indexing the project right now. It only asks for a shared lock, and only for an
+    /// instant, so it never records itself as the holder.
+    pub fn is_held(folder: &ProjectFolder) -> bool {
+        let Ok(file) = File::open(folder.lock_file()) else {
+            return false;
+        };
+        match file.try_lock_shared() {
+            Ok(()) => {
+                let _ = file.unlock();
+                false
+            }
+            Err(_) => true,
+        }
+    }
+
+    fn holder(folder: &ProjectFolder) -> Option<u32> {
+        std::fs::read_to_string(folder.holder_file())
+            .ok()
+            .and_then(|text| text.trim().parse().ok())
     }
 }
 

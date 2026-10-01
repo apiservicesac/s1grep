@@ -20,6 +20,8 @@ pub enum IndexEvent {
     Scanned {
         files: usize,
         changed: usize,
+        #[serde(default)]
+        skipped: usize,
         functions: usize,
         seconds: f64,
     },
@@ -93,10 +95,17 @@ impl ProgressDisplay {
             IndexEvent::Scanned {
                 files,
                 changed,
+                skipped,
                 functions,
                 seconds,
             } => {
                 self.clear();
+                if *skipped > 0 {
+                    self.line(&self.warn(&format!(
+                        "Skipped {} files that changed or became unreadable while being read",
+                        Units::count(*skipped)
+                    )));
+                }
                 if *changed > 0 {
                     self.line(&self.dim(&format!(
                         "Read {} files ({} new or changed) · {} functions · {:.1} s",

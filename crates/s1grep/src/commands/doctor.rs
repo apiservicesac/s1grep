@@ -2,7 +2,9 @@ use std::path::PathBuf;
 
 use clap::Args;
 
-use crate::models::{CacheDirectory, ModelDirectory, Retriever};
+use crate::cache::ProjectFolder;
+use crate::indexer::Pass;
+use crate::models::{ModelDirectory, Retriever};
 use crate::progress::Units;
 use crate::project::Project;
 use crate::server::ServerClient;
@@ -45,10 +47,10 @@ impl DoctorCommand {
         println!("\nIndex");
         match Project::locate(&self.path) {
             Ok(project) => {
-                if CacheDirectory::project_index(&project.root)?.is_file() {
+                if ProjectFolder::exists_for(&project.root)? {
                     let coverage = project
                         .open_store()?
-                        .coverage(Retriever::Granite.key(), project.scope.as_deref())?;
+                        .coverage(&Pass::Whole.key(Retriever::Granite), project.scope.as_deref())?;
                     println!(
                         "  {}  {} of {} functions indexed in {}",
                         Self::mark(coverage.is_complete()),

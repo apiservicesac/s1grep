@@ -1,7 +1,7 @@
 # 0004. Every vector is keyed by its embedding space
 
 - Status: Accepted (2026-10-01)
-- Implementation: Stage 1.
+- Implementation: done in stage 1 (0.2.5).
 
 ## Context
 

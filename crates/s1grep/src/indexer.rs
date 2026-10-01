@@ -1,9 +1,10 @@
 use std::path::Path;
-use std::time::{Instant, UNIX_EPOCH};
+use std::time::{Duration, Instant, UNIX_EPOCH};
 
-use anyhow::Context;
 use s1_engine::Embedder;
-use s1_index::{CodeUnit, ContentFingerprint, FileState, IndexStore, PythonExtractor, SourceWalker, WalkOptions};
+use s1_index::{
+    CodeUnit, ContentFingerprint, FileState, IndexLimits, IndexStore, PythonExtractor, SourceWalker, WalkOptions,
+};
 
 use crate::models::Retriever;
 use crate::progress::IndexEvent;
@@ -18,10 +19,15 @@ pub enum Pass {
 }
 
 impl Pass {
-    pub fn key(self, retriever: Retriever) -> &'static str {
+    /// The embedding space key of this pass's vectors.
+    pub fn key(self, retriever: Retriever) -> String {
+        retriever.space(self.text_format()).key()
+    }
+
+    pub fn text_format(self) -> &'static str {
         match self {
-            Self::Outline => retriever.outline_key(),
-            Self::Whole => retriever.key(),
+            Self::Outline => IndexLimits::OUTLINE_TEXT_FORMAT,
+            Self::Whole => IndexLimits::WHOLE_TEXT_FORMAT,
         }
     }
 
@@ -53,6 +59,8 @@ pub struct ScanReport {
     pub files: usize,
     pub changed: usize,
     pub removed: usize,
+    /// Files that disappeared or could not be read between the walk and the read.
+    pub skipped: usize,
 }
 
 /// Keeps a project's index current in two steps: `scan` mirrors the files into functions (seconds, even for large
@@ -96,8 +104,11 @@ impl Indexer<'_> {
                     files: files.len(),
                 });
             }
-            let metadata =
-                std::fs::metadata(&file.absolute).with_context(|| format!("reading {}", file.absolute.display()))?;
+            // A file that vanished or cannot be read since the walk is skipped, not a reason to fail the search.
+            let Ok(metadata) = std::fs::metadata(&file.absolute) else {
+                report.skipped += 1;
+                continue;
+            };
             let modified = metadata
                 .modified()
                 .ok()
@@ -110,8 +121,10 @@ impl Indexer<'_> {
             {
                 continue;
             }
-            let bytes =
-                std::fs::read(&file.absolute).with_context(|| format!("reading {}", file.absolute.display()))?;
+            let Ok(bytes) = std::fs::read(&file.absolute) else {
+                report.skipped += 1;
+                continue;
+            };
             let state = FileState {
                 hash: ContentFingerprint::of(&bytes),
                 size: metadata.len(),
@@ -129,7 +142,8 @@ impl Indexer<'_> {
         progress(IndexEvent::Scanned {
             files: report.files,
             changed: report.changed,
-            functions: self.store.coverage(self.retriever.key(), None)?.units,
+            skipped: report.skipped,
+            functions: self.store.unit_count()?,
             seconds: started.elapsed().as_secs_f64(),
         });
         Ok(report)
@@ -143,19 +157,24 @@ impl Indexer<'_> {
         scope: Option<&str>,
         progress: &mut dyn FnMut(IndexEvent),
     ) -> anyhow::Result<usize> {
+        self.embed_for(embedder, pass, scope, None, progress)
+    }
+
+    /// Like `embed`, but stops after the batch that crosses `budget`, leaving the rest for later.
+    pub fn embed_for(
+        &mut self,
+        embedder: &mut Embedder,
+        pass: Pass,
+        scope: Option<&str>,
+        budget: Option<Duration>,
+        progress: &mut dyn FnMut(IndexEvent),
+    ) -> anyhow::Result<usize> {
         let key = pass.key(self.retriever);
-        let total = self.store.pending_count(key, scope)?;
+        let total = self.store.pending_count(&key, scope)?;
         let started = Instant::now();
         let mut done = 0;
-        while done < total {
-            let batch = self.store.pending_units(key, scope, pass.batch())?;
-            let batch: Vec<_> = match scope {
-                Some(scope) => batch
-                    .into_iter()
-                    .filter(|stored| Self::inside(&stored.unit.path, scope))
-                    .collect(),
-                None => batch,
-            };
+        while done < total && budget.is_none_or(|budget| started.elapsed() < budget) {
+            let batch = self.store.pending_units_within(&key, scope, pass.batch())?;
             if batch.is_empty() {
                 break;
             }
@@ -163,14 +182,10 @@ impl Indexer<'_> {
             let vectors = embedder.embed_documents(&texts)?;
             let rows: Vec<(String, Vec<f32>)> =
                 batch.iter().map(|stored| stored.content.clone()).zip(vectors).collect();
-            self.store.store_vectors(key, &rows)?;
+            self.store.store_vectors(&key, &rows)?;
             done = (done + rows.len()).min(total);
             progress(pass.event(done, total, started.elapsed().as_secs_f64()));
         }
         Ok(done)
-    }
-
-    fn inside(path: &str, scope: &str) -> bool {
-        path == scope || path.strip_prefix(scope).is_some_and(|rest| rest.starts_with('/'))
     }
 }

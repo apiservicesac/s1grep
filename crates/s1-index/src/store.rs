@@ -1,8 +1,10 @@
+use std::collections::HashSet;
 use std::path::Path;
 
 use rusqlite::{Connection, OptionalExtension, params};
 
 use crate::error::IndexError;
+use crate::schema::SchemaMigrations;
 use crate::settings::IndexLimits;
 use crate::unit::CodeUnit;
 
@@ -54,34 +56,27 @@ impl ScopeFilter {
     fn matches(parameter: usize) -> String {
         format!("(path = ?{parameter} OR substr(path, 1, length(?{parameter}) + 1) = ?{parameter} || '/')")
     }
+
+    /// "This unit has no vector in the space bound to `?N`": an index lookup per unit, unlike `NOT IN`, which would
+    /// list every vector of the space across all projects.
+    fn missing_vector(parameter: usize) -> String {
+        format!(
+            "NOT EXISTS (SELECT 1 FROM shared.vectors AS present
+                         WHERE present.model = ?{parameter} AND present.content = units.content)"
+        )
+    }
 }
 
 /// One project's index: its files and code units, plus a vector cache shared by every project. Vectors are keyed by
-/// a fingerprint of the embedded text, so a framework copied into many projects is embedded once.
+/// their embedding space and a fingerprint of the unit, so a framework copied into many projects is embedded once.
 pub struct IndexStore {
     connection: Connection,
 }
 
 impl IndexStore {
-    const PROJECT_SCHEMA: &'static str = "
-        PRAGMA journal_mode = WAL;
-        PRAGMA synchronous = NORMAL;
-        CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-        CREATE TABLE IF NOT EXISTS files (
-            path TEXT PRIMARY KEY, hash TEXT NOT NULL, size INTEGER NOT NULL, modified INTEGER NOT NULL);
-        CREATE TABLE IF NOT EXISTS units (
-            id INTEGER PRIMARY KEY, path TEXT NOT NULL, name TEXT NOT NULL, start_line INTEGER NOT NULL,
-            end_line INTEGER NOT NULL, source TEXT NOT NULL, content TEXT NOT NULL);
-        CREATE INDEX IF NOT EXISTS units_by_path ON units(path);
-        CREATE INDEX IF NOT EXISTS units_by_content ON units(content);";
-    const VECTOR_SCHEMA: &'static str = "
-        PRAGMA shared.journal_mode = WAL;
-        CREATE TABLE IF NOT EXISTS shared.vectors (
-            model TEXT NOT NULL, content TEXT NOT NULL, vector BLOB NOT NULL, PRIMARY KEY (model, content));";
-
-    /// Opens a project index and attaches the shared vector cache.
-    pub fn open(project: &Path, vectors: &Path) -> Result<Self, IndexError> {
-        for path in [project, vectors] {
+    /// Opens a project's catalog and attaches the shared vector cache, bringing both schemas up to date.
+    pub fn open(catalog: &Path, vectors: &Path) -> Result<Self, IndexError> {
+        for path in [catalog, vectors] {
             if let Some(parent) = path.parent() {
                 std::fs::create_dir_all(parent).map_err(|source| IndexError::Io {
                     path: parent.to_path_buf(),
@@ -89,11 +84,13 @@ impl IndexStore {
                 })?;
             }
         }
-        let connection = Connection::open(project)?;
+        let mut connection = Connection::open(catalog)?;
         connection.busy_timeout(IndexLimits::BUSY_TIMEOUT)?;
-        connection.execute_batch(Self::PROJECT_SCHEMA)?;
+        connection.execute_batch("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;")?;
         connection.execute("ATTACH DATABASE ?1 AS shared", [vectors.to_string_lossy()])?;
-        connection.execute_batch(Self::VECTOR_SCHEMA)?;
+        connection.execute_batch("PRAGMA shared.journal_mode = WAL; PRAGMA shared.synchronous = NORMAL;")?;
+        SchemaMigrations::CATALOG.apply(&mut connection)?;
+        SchemaMigrations::VECTORS.apply(&mut connection)?;
         Ok(Self { connection })
     }
 
@@ -104,9 +101,9 @@ impl IndexStore {
             .optional()?)
     }
 
-    pub fn set_meta(&self, key: &str, value: &str) -> Result<(), IndexError> {
-        self.connection
-            .execute("INSERT OR REPLACE INTO meta (key, value) VALUES (?1, ?2)", [key, value])?;
+    /// Folds the write-ahead log into the database file, so the database is complete in one file.
+    pub fn fold_write_ahead_log(&self) -> Result<(), IndexError> {
+        self.connection.execute_batch("PRAGMA main.wal_checkpoint(TRUNCATE);")?;
         Ok(())
     }
 
@@ -189,33 +186,64 @@ impl IndexStore {
         Ok(())
     }
 
-    /// Units without a vector for `model`, those under `scope` first, one per distinct content.
-    pub fn pending_units(&self, model: &str, scope: Option<&str>, limit: usize) -> Result<Vec<StoredUnit>, IndexError> {
+    /// Up to `limit` distinct contents without a vector in `space`, only those under `scope`.
+    pub fn pending_units_within(
+        &self,
+        space: &str,
+        scope: Option<&str>,
+        limit: usize,
+    ) -> Result<Vec<StoredUnit>, IndexError> {
         let mut statement = self.connection.prepare(&format!(
             "SELECT MIN(id), path, name, start_line, end_line, source, content FROM units
-             WHERE content NOT IN (SELECT content FROM shared.vectors WHERE model = ?1)
-             GROUP BY content
-             ORDER BY (?2 IS NOT NULL AND {}) DESC, MIN(id)
-             LIMIT ?3",
-            ScopeFilter::matches(2)
+             WHERE (?2 IS NULL OR {}) AND {}
+             GROUP BY content ORDER BY MIN(id) LIMIT ?3",
+            ScopeFilter::matches(2),
+            ScopeFilter::missing_vector(1)
         ))?;
-        let rows = statement.query_map(params![model, scope, limit as i64], Self::stored)?;
+        let rows = statement.query_map(params![space, scope, limit as i64], Self::stored)?;
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
     }
 
-    /// Distinct contents under `scope` that still need a vector for `model`.
-    pub fn pending_count(&self, model: &str, scope: Option<&str>) -> Result<usize, IndexError> {
+    /// Up to `limit` distinct contents without a vector in `space` anywhere in the project, those with a copy under
+    /// `scope` first.
+    pub fn pending_units_scope_first(
+        &self,
+        space: &str,
+        scope: Option<&str>,
+        limit: usize,
+    ) -> Result<Vec<StoredUnit>, IndexError> {
+        let mut statement = self.connection.prepare(&format!(
+            "SELECT MIN(id), path, name, start_line, end_line, source, content FROM units
+             WHERE {}
+             GROUP BY content
+             ORDER BY MAX(?2 IS NOT NULL AND {}) DESC, MIN(id)
+             LIMIT ?3",
+            ScopeFilter::missing_vector(1),
+            ScopeFilter::matches(2)
+        ))?;
+        let rows = statement.query_map(params![space, scope, limit as i64], Self::stored)?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
+    /// Distinct contents under `scope` that still need a vector in `space`.
+    pub fn pending_count(&self, space: &str, scope: Option<&str>) -> Result<usize, IndexError> {
         let count: i64 = self.connection.query_row(
             &format!(
-                "SELECT COUNT(DISTINCT content) FROM units
-             WHERE (?2 IS NULL OR {})
-             AND content NOT IN (SELECT content FROM shared.vectors WHERE model = ?1)",
-                ScopeFilter::matches(2)
+                "SELECT COUNT(DISTINCT content) FROM units WHERE (?2 IS NULL OR {}) AND {}",
+                ScopeFilter::matches(2),
+                ScopeFilter::missing_vector(1)
             ),
-            params![model, scope],
+            params![space, scope],
             |row| row.get(0),
         )?;
         Ok(count as usize)
+    }
+
+    /// Every content key this project's units use, so that a clean-up keeps their vectors.
+    pub fn content_keys(&self) -> Result<HashSet<String>, IndexError> {
+        let mut statement = self.connection.prepare("SELECT DISTINCT content FROM units")?;
+        let keys = statement.query_map([], |row| row.get(0))?;
+        Ok(keys.collect::<Result<_, _>>()?)
     }
 
     pub fn store_vectors(&mut self, model: &str, vectors: &[(String, Vec<f32>)]) -> Result<(), IndexError> {
@@ -259,6 +287,13 @@ impl IndexStore {
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
     }
 
+    pub fn unit_count(&self) -> Result<usize, IndexError> {
+        let count: i64 = self
+            .connection
+            .query_row("SELECT COUNT(*) FROM units", [], |row| row.get(0))?;
+        Ok(count as usize)
+    }
+
     pub fn coverage(&self, model: &str, scope: Option<&str>) -> Result<Coverage, IndexError> {
         let (units, embedded): (i64, i64) = self.connection.query_row(
             &format!(
@@ -297,5 +332,186 @@ impl IndexStore {
                 source: row.get(5)?,
             },
         })
+    }
+}
+
+/// The shared vector cache on its own, for clean-ups that span every project.
+pub struct VectorCache {
+    connection: Connection,
+}
+
+impl VectorCache {
+    pub fn open(vectors: &Path) -> Result<Self, IndexError> {
+        let mut connection = Connection::open_in_memory()?;
+        connection.execute("ATTACH DATABASE ?1 AS shared", [vectors.to_string_lossy()])?;
+        connection.busy_timeout(IndexLimits::BUSY_TIMEOUT)?;
+        SchemaMigrations::VECTORS.apply(&mut connection)?;
+        Ok(Self { connection })
+    }
+
+    /// Moves the vectors stored under an old space key to its current key, keeping any already stored there.
+    pub fn rename_space(&mut self, from: &str, to: &str) -> Result<usize, IndexError> {
+        let transaction = self.connection.transaction()?;
+        let moved = transaction.execute(
+            "UPDATE OR IGNORE shared.vectors SET model = ?2 WHERE model = ?1",
+            params![from, to],
+        )?;
+        transaction.execute("DELETE FROM shared.vectors WHERE model = ?1", [from])?;
+        transaction.commit()?;
+        Ok(moved)
+    }
+
+    /// Deletes vectors of spaces not in `spaces` and of contents no project uses, then compacts the file. Returns how
+    /// many vectors were removed.
+    pub fn remove_unused(&mut self, spaces: &[String], contents: &HashSet<String>) -> Result<usize, IndexError> {
+        let transaction = self.connection.transaction()?;
+        transaction.execute_batch(
+            "CREATE TEMP TABLE kept_spaces (model TEXT PRIMARY KEY);
+                                   CREATE TEMP TABLE kept_contents (content TEXT PRIMARY KEY);",
+        )?;
+        for space in spaces {
+            transaction.execute("INSERT OR IGNORE INTO kept_spaces VALUES (?1)", [space])?;
+        }
+        for content in contents {
+            transaction.execute("INSERT OR IGNORE INTO kept_contents VALUES (?1)", [content])?;
+        }
+        let removed = transaction.execute(
+            "DELETE FROM shared.vectors
+             WHERE model NOT IN (SELECT model FROM kept_spaces)
+             OR content NOT IN (SELECT content FROM kept_contents)",
+            [],
+        )?;
+        transaction.execute_batch("DROP TABLE kept_spaces; DROP TABLE kept_contents;")?;
+        transaction.commit()?;
+        self.connection.execute_batch("VACUUM shared;")?;
+        Ok(removed)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use rusqlite::Connection;
+
+    use super::IndexStore;
+    use crate::error::IndexError;
+    use crate::store::FileState;
+    use crate::unit::CodeUnit;
+
+    /// A folder under the system temporary directory, removed when dropped.
+    struct ScratchFolder {
+        path: PathBuf,
+    }
+
+    impl ScratchFolder {
+        fn new(name: &str) -> Self {
+            let path = std::env::temp_dir().join(format!("s1-index-{name}-{}", std::process::id()));
+            let _ = std::fs::remove_dir_all(&path);
+            std::fs::create_dir_all(&path).unwrap();
+            Self { path }
+        }
+    }
+
+    impl Drop for ScratchFolder {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.path);
+        }
+    }
+
+    fn unit(path: &str, name: &str) -> CodeUnit {
+        CodeUnit {
+            path: path.to_string(),
+            name: name.to_string(),
+            start_line: 1,
+            end_line: 3,
+            source: format!("def {name}():\n    value = 1\n    return value"),
+        }
+    }
+
+    fn state() -> FileState {
+        FileState {
+            hash: "hash".to_string(),
+            size: 1,
+            modified: 1,
+        }
+    }
+
+    #[test]
+    fn adopts_an_unversioned_catalog_and_refuses_a_newer_one() {
+        let folder = ScratchFolder::new("schema");
+        let catalog = folder.path.join("catalog.sqlite");
+        let vectors = folder.path.join("vectors.sqlite");
+        Connection::open(&catalog)
+            .unwrap()
+            .execute_batch("CREATE TABLE files (path TEXT PRIMARY KEY, hash TEXT NOT NULL, size INTEGER NOT NULL, modified INTEGER NOT NULL);")
+            .unwrap();
+        drop(IndexStore::open(&catalog, &vectors).unwrap());
+        let version: i64 = Connection::open(&catalog)
+            .unwrap()
+            .query_row("PRAGMA user_version", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, 1);
+        Connection::open(&catalog)
+            .unwrap()
+            .execute_batch("PRAGMA user_version = 99")
+            .unwrap();
+        assert!(matches!(
+            IndexStore::open(&catalog, &vectors),
+            Err(IndexError::NewerSchema { database: "main", .. })
+        ));
+    }
+
+    #[test]
+    fn a_scoped_pass_finds_a_function_whose_first_copy_is_outside_the_scope() {
+        let folder = ScratchFolder::new("scope");
+        let mut store =
+            IndexStore::open(&folder.path.join("catalog.sqlite"), &folder.path.join("vectors.sqlite")).unwrap();
+        store
+            .replace_file("vendor/a.py", &state(), &[unit("vendor/a.py", "shared")])
+            .unwrap();
+        store
+            .replace_file("app/b.py", &state(), &[unit("app/b.py", "shared")])
+            .unwrap();
+        assert_eq!(store.pending_count("space", Some("app")).unwrap(), 1);
+        assert_eq!(store.pending_units_within("space", Some("app"), 10).unwrap().len(), 1);
+        let content = store.pending_units_within("space", Some("app"), 10).unwrap()[0]
+            .content
+            .clone();
+        store.store_vectors("space", &[(content, vec![1.0])]).unwrap();
+        assert_eq!(store.pending_count("space", Some("app")).unwrap(), 0);
+        assert_eq!(store.pending_count("space", None).unwrap(), 0);
+    }
+
+    #[test]
+    fn renaming_a_space_keeps_vectors_already_under_the_new_key() {
+        let folder = ScratchFolder::new("rename");
+        let vectors = folder.path.join("vectors.sqlite");
+        let mut store = IndexStore::open(&folder.path.join("catalog.sqlite"), &vectors).unwrap();
+        store
+            .replace_file("a.py", &state(), &[unit("a.py", "first"), unit("a.py", "second")])
+            .unwrap();
+        let pending = store.pending_units_within("old", None, 10).unwrap();
+        store
+            .store_vectors(
+                "old",
+                &[
+                    (pending[0].content.clone(), vec![1.0]),
+                    (pending[1].content.clone(), vec![2.0]),
+                ],
+            )
+            .unwrap();
+        store
+            .store_vectors("new", &[(pending[0].content.clone(), vec![3.0])])
+            .unwrap();
+        super::VectorCache::open(&vectors)
+            .unwrap()
+            .rename_space("old", "new")
+            .unwrap();
+        assert_eq!(store.pending_count("new", None).unwrap(), 0);
+        assert_eq!(store.pending_count("old", None).unwrap(), 2);
+        let units = store.searchable_units("new", "outline", None).unwrap();
+        assert_eq!(units[0].vector, vec![3.0]);
+        assert_eq!(units[1].vector, vec![2.0]);
     }
 }

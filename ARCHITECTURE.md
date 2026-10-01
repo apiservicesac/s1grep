@@ -59,17 +59,22 @@ left.
 ## Data on disk
 
 ```text
-~/.cache/s1grep/                 (%LOCALAPPDATA%\s1grep on Windows)
-├── models/                      s1-code-v3-onnx, granite-278m-onnx
-├── vectors.sqlite               vectors shared by every project: (model key, content key) → f32 vector
-├── projects/<path hash>.sqlite  one per project: meta, files (size, mtime, hash), units (path, name, lines, source)
-├── projects/<path hash>.lock    held while a process indexes that project
-├── server.json, server.lock     the running background process: port, token, pid, version
+~/.cache/s1grep/                     (%LOCALAPPDATA%\s1grep on Windows)
+├── models/                          s1-code-v3-onnx, granite-278m-onnx
+├── vectors.sqlite                   shared by every project: (embedding space, content key) → f32 vector
+├── projects/<path fingerprint>/
+│   ├── project.json                 the project's real path, creation and last use
+│   ├── catalog.sqlite               files (size, mtime, hash) and units (path, name, lines, source)
+│   ├── lock, lock.pid               held while a process indexes the project, and by whom
+├── server.json, server.lock         the running background process: port, token, pid, version
 └── server.log
-~/.config/s1grep/ignore          global ignore rules, written with the defaults on first use
+~/.config/s1grep/ignore              global ignore rules, written with the defaults on first use
 ```
 
 A unit's content key is blake3 of its name and source, so the same function in several projects is embedded once.
+An embedding space key names the model, its revision, the dimension and the kind of text embedded, e.g.
+`granite-embedding-278m-multilingual@b795cbc00b23/768d/whole-v1`. Both databases record their schema version in
+`PRAGMA user_version` and migrate forward (`SchemaMigrations`); `s1grep gc` removes what nothing uses.
 
 ## Where it is going
 

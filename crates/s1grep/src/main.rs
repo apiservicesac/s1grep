@@ -1,6 +1,7 @@
 use clap::{Parser, Subcommand};
 
 use s1grep::commands::doctor::DoctorCommand;
+use s1grep::commands::gc::GcCommand;
 use s1grep::commands::index::IndexCommand;
 use s1grep::commands::mcp::McpCommand;
 use s1grep::commands::search::SearchArgs;
@@ -46,13 +47,16 @@ enum Command {
     Skill(SkillCommand),
     /// Index a repository ahead of the first search
     Index(IndexCommand),
+    /// Remove indexes of folders that no longer exist and vectors nothing uses
+    Gc(GcCommand),
     #[command(hide = true)]
     Search(SearchArgs),
 }
 
 fn main() -> anyhow::Result<()> {
-    RuntimeLibrary::load()?;
+    // Parsed first, so that --help and --version work even without the ONNX Runtime library.
     let cli = Cli::parse();
+    RuntimeLibrary::load()?;
     match cli.command {
         None => cli.search.run(),
         Some(Command::Setup(command)) => command.run(),
@@ -63,6 +67,7 @@ fn main() -> anyhow::Result<()> {
         Some(Command::Mcp(command)) => command.run(),
         Some(Command::Skill(command)) => command.run(),
         Some(Command::Index(command)) => command.run(),
+        Some(Command::Gc(command)) => command.run(),
         Some(Command::Search(command)) => command.run(),
     }
 }

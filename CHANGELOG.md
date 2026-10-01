@@ -5,15 +5,40 @@ All notable changes to `s1grep` are documented here. Versions follow [Semantic V
 ## [Unreleased]
 
 ### Added
+- `s1grep gc` removes the indexes of folders that no longer exist and the vectors no index uses (`--dry-run` shows
+  what it would remove).
+- Indexes carry a schema version and migrate themselves; one written by a newer s1grep is never rewritten by an older
+  one.
+- Every vector is stored under its embedding space (model, revision, dimension and kind of text), so a model or text
+  change never mixes old and new vectors.
 - `ARCHITECTURE.md`, architecture decision records in `docs/decisions/`, `docs/quality.md` and `CONTRIBUTING.md`.
 - CI runs clippy (warnings fail) and the unit tests on Windows.
 - The README shows how the judge, trained on Python, does on other languages.
 
 ### Changed
+- Each project's index lives in its own folder, `projects/<key>/` with `project.json` (the real path and last use),
+  `catalog.sqlite` and its lock. Indexes and vectors of earlier versions move there on first use, without re-indexing.
+- The first search in a large project waits at most about 10 s for outline vectors and answers with what is ready,
+  saying how many functions are not searchable yet; later searches answer at once while the background process
+  continues. In a 16,000-function repository the first search went from 514 s to 18 s, the next ones take 4 s.
+- `--exclude` hides results of one search instead of removing those files from the shared index; `s1grep index` no
+  longer takes it.
 - The development commands (`eval`, `rerank-eval`, `bench`, `decide`, `units`) moved out of the shipped binary into
   the `s1-lab` crate, which is never released. The exam refuses to run against the real cache.
 - Internal clean-up with no change in behaviour: every tunable value in its crate's settings, one SQL scope filter,
   dead code removed, `decide` built on `decide_batch`.
+
+### Fixed
+- Two searches starting at once no longer load the models twice or fail with "already running": the background
+  process takes its lock before loading the models, and a search waits for a process that is still starting.
+- `server.json` is written atomically, and a stale one is removed when a new background process starts.
+- A background indexing step that keeps failing pauses between tries and is dropped after three, instead of spinning.
+- `s1grep status` no longer takes the indexing lock nor overwrites the process id of the process holding it.
+- A file that disappears or becomes unreadable during a scan is skipped with a notice instead of failing the search.
+- Functions shared with another folder are indexed when a subfolder is searched, and pending work outside the searched
+  folder is handed to the background process.
+- The number of judged candidates is reported as the number actually judged.
+- `--help` and `--version` work without the ONNX Runtime library; Windows paths no longer show the `\\?\` prefix.
 
 ## [0.2.4] — 2026-10-01
 

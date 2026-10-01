@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use anyhow::{Context, bail};
 use clap::Args;
 use s1_engine::ModelBundle;
-use s1grep::models::CacheDirectory;
+use s1grep::cache::CacheDirectory;
 
 use crate::settings::BenchSettings;
 
@@ -19,7 +19,7 @@ impl ModelLocator {
     pub fn open(&self) -> anyhow::Result<ModelBundle> {
         let directory = match &self.directory {
             Some(directory) => directory.clone(),
-            None => CacheDirectory::root()?.join("models").join(BenchSettings::MODEL),
+            None => CacheDirectory::models()?.join(BenchSettings::MODEL),
         };
         if !directory.is_dir() {
             bail!(

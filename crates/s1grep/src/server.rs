@@ -8,8 +8,9 @@ use std::time::{Duration, Instant};
 use anyhow::{Context, bail};
 use serde::{Deserialize, Serialize};
 
+use crate::cache::{AtomicFile, CacheDirectory};
 use crate::hub::ModelInstaller;
-use crate::models::{CacheDirectory, ModelDirectory};
+use crate::models::ModelDirectory;
 use crate::progress::IndexEvent;
 use crate::service::{SearchRequest, SearchResponse, SearchService};
 use crate::settings::ServerSettings;
@@ -38,17 +39,7 @@ impl ServerInfo {
     }
 
     fn write(&self) -> anyhow::Result<()> {
-        let path = Self::path()?;
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
-        std::fs::write(&path, serde_json::to_string(self)?)?;
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))?;
-        }
-        Ok(())
+        AtomicFile::write(&Self::path()?, serde_json::to_string(self)?.as_bytes())
     }
 
     fn remove(&self) {
@@ -96,8 +87,8 @@ pub struct SearchServer {
 }
 
 impl SearchServer {
-    pub fn start(service: SearchService, port: u16, idle: Option<Duration>) -> anyhow::Result<Self> {
-        let lock = Self::lock()?.context("an s1grep server is already running (`s1grep status` shows it)")?;
+    /// Starts answering with `lock`, taken by `acquire_lock` before the models were loaded.
+    pub fn start(service: SearchService, lock: File, port: u16, idle: Option<Duration>) -> anyhow::Result<Self> {
         let listener =
             TcpListener::bind((Ipv4Addr::LOCALHOST, port)).with_context(|| format!("listening on port {port}"))?;
         listener.set_nonblocking(true)?;
@@ -116,6 +107,21 @@ impl SearchServer {
             idle,
             server_lock: lock,
         })
+    }
+
+    /// The server lock, taken before loading the models, so that two searches starting at once never load them twice.
+    pub fn acquire_lock() -> anyhow::Result<File> {
+        let lock = Self::lock()?.context("an s1grep server is already running (`s1grep status` shows it)")?;
+        // Whatever server.json says now was left by a server that is gone: nobody else can hold the lock.
+        if let Ok(path) = ServerInfo::path() {
+            let _ = std::fs::remove_file(path);
+        }
+        Ok(lock)
+    }
+
+    /// Whether a server holds the lock: running, or still loading its models.
+    pub fn is_running() -> anyhow::Result<bool> {
+        Ok(Self::lock()?.is_none())
     }
 
     /// The server lock, or `None` when another server holds it.
@@ -152,10 +158,14 @@ impl SearchServer {
                 Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
                     if self.service.has_indexing() {
                         // Background indexing counts as activity: the process stays until every project is indexed.
-                        if let Err(error) = self.service.index_step() {
-                            eprintln!("s1grep server: indexing: {error:#}");
+                        // A failed step pauses before the next try instead of spinning on the same error.
+                        match self.service.index_step() {
+                            Ok(()) => last_activity = Instant::now(),
+                            Err(error) => {
+                                eprintln!("s1grep server: indexing: {error:#}");
+                                std::thread::sleep(ServerSettings::INDEX_RETRY_PAUSE);
+                            }
                         }
-                        last_activity = Instant::now();
                         continue;
                     }
                     if let Some(idle) = self.idle
@@ -393,17 +403,28 @@ impl BackgroundServer {
             let _ = recorded.stop();
         }
         progress(IndexEvent::StartingServer);
-        let mut child = Self::spawn(models)?;
+        // A server holding the lock without server.json is still loading its models (another search started it).
+        let mut child = if SearchServer::is_running()? {
+            None
+        } else {
+            Some(Self::spawn(models)?)
+        };
         let deadline = Instant::now() + ServerSettings::START_TIMEOUT;
         while Instant::now() < deadline {
             if let Some(client) = ServerClient::connect() {
                 return Ok(client);
             }
-            if child.try_wait()?.is_some() {
-                bail!(
-                    "the background process stopped: {}",
-                    Self::last_log_line().unwrap_or_else(|| "see the server log".to_string())
-                );
+            if let Some(process) = child.as_mut()
+                && process.try_wait()?.is_some()
+            {
+                // Lost the race to a server another search started at the same moment: wait for that one.
+                if !SearchServer::is_running()? {
+                    bail!(
+                        "the background process stopped: {}",
+                        Self::last_log_line().unwrap_or_else(|| "see the server log".to_string())
+                    );
+                }
+                child = None;
             }
             std::thread::sleep(ServerSettings::POLL_INTERVAL);
         }
