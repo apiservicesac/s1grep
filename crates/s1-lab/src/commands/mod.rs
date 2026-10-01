@@ -2,6 +2,7 @@ pub mod bench;
 pub mod decide;
 pub mod embed_bench;
 pub mod eval;
+pub mod explain;
 pub mod lengths;
 pub mod profile;
 pub mod rerank_eval;

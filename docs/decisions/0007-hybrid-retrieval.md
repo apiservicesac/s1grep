@@ -42,6 +42,9 @@ written in English. The first shape rule also took brand names (`GitHub`), dates
 - Lexical search only (Cody's choice): loses Spanish-to-English and paraphrased queries.
 - SQLite FTS5: workable, but less control over tokenization and scoring.
 - A fixed lexical weight for every query: measured above.
+- Distinctive words for prose: words of four or more letters found in the names or paths of at most 1 % of the
+  functions, searched in those fields. It was designed after one failed search and fixed that one, but the exam's
+  questions fell from 168 / 189 to 141 / 178, so it was dropped. A rule is kept only if the exam agrees.
 
 ## Consequences
 

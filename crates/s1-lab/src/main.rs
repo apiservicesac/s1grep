@@ -9,6 +9,7 @@ use commands::bench::BenchCommand;
 use commands::decide::DecideCommand;
 use commands::embed_bench::EmbedBenchCommand;
 use commands::eval::EvalCommand;
+use commands::explain::ExplainCommand;
 use commands::lengths::LengthsCommand;
 use commands::profile::ProfileCommand;
 use commands::rerank_eval::RerankEvalCommand;
@@ -36,6 +37,8 @@ enum LabCommand {
     Decide(DecideCommand),
     /// Time the parts of a search that do not use the models, on an existing index
     Profile(ProfileCommand),
+    /// Where expected functions rank in each list a search draws from
+    Explain(ExplainCommand),
     /// Embedding speed of the retrievers on the same functions, whole sources and outlines
     EmbedBench(EmbedBenchCommand),
     /// Token lengths of the functions of some repositories, and the embedding work each token cap leaves
@@ -53,5 +56,6 @@ fn main() -> anyhow::Result<()> {
         LabCommand::Profile(command) => command.run(),
         LabCommand::Lengths(command) => command.run(),
         LabCommand::EmbedBench(command) => command.run(),
+        LabCommand::Explain(command) => command.run(),
     }
 }
