@@ -1552,6 +1552,7 @@ dependencies = [
  "s1grep",
  "serde",
  "serde_json",
+ "tokenizers",
 ]
 
 [[package]]

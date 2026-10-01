@@ -30,6 +30,8 @@ pub struct Searcher {
     pub embedder: Embedder,
     judge: Option<LayaEngine>,
     retriever: Retriever,
+    /// The judge stops reading candidates once one scores at least this; `None` reads them all.
+    early_stop: Option<f64>,
 }
 
 impl Searcher {
@@ -55,7 +57,12 @@ impl Searcher {
             embedder,
             judge,
             retriever,
+            early_stop: Some(SearchSettings::JUDGE_EARLY_STOP),
         })
+    }
+
+    pub fn set_early_stop(&mut self, threshold: Option<f64>) {
+        self.early_stop = threshold;
     }
 
     pub fn has_judge(&self) -> bool {
@@ -133,7 +140,11 @@ impl Searcher {
         let mut scores = Vec::new();
         for unit in units {
             let decisions = judge.decide_batch(&[Value::String(unit.judge_state())], &questions)?;
-            scores.push(decisions[0].answers[0].1.noul());
+            let score = decisions[0].answers[0].1.noul();
+            scores.push(score);
+            if self.early_stop.is_some_and(|threshold| score >= threshold) {
+                break;
+            }
         }
         Ok(scores)
     }

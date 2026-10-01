@@ -13,6 +13,7 @@ use s1grep::models::{ModelDirectory, Retriever};
 use s1grep::project::Project;
 use s1grep::searcher::Searcher;
 use s1grep::service::FileFilters;
+use s1grep::settings::SearchSettings;
 
 /// One exam question, in the format the exam builders use: the answer is `path` (with the repository folder in
 /// front) and `function`, plus any equally valid answers.
@@ -76,6 +77,12 @@ pub struct EvalCommand {
     judge_top: Option<usize>,
     #[arg(long)]
     threads: Option<usize>,
+    /// Stop judging a search's candidates once one scores at least this probability (default: the shipped setting)
+    #[arg(long, conflicts_with = "judge_all")]
+    early_stop: Option<f64>,
+    /// Judge every candidate, with no early stop
+    #[arg(long)]
+    judge_all: bool,
     #[command(flatten)]
     models: ModelDirectory,
 }
@@ -90,6 +97,13 @@ impl EvalCommand {
         let started = Instant::now();
         let judged = self.judge_top.unwrap_or(self.retriever.default_judged());
         let mut searcher = Searcher::load(&self.models, self.retriever, true, self.threads)?;
+        let early_stop = if self.judge_all {
+            None
+        } else {
+            Some(self.early_stop.unwrap_or(SearchSettings::JUDGE_EARLY_STOP))
+        };
+        searcher.set_early_stop(early_stop);
+        let mut judged_total = 0;
         let mut tallies: BTreeMap<String, Tally> = BTreeMap::new();
         let mut search_seconds = Vec::new();
         let mut exam_files: Vec<PathBuf> = std::fs::read_dir(&self.exam)
@@ -143,6 +157,7 @@ impl EvalCommand {
                 let search_started = Instant::now();
                 let hits = searcher.search(&question.text, &index, |_| true, &store, judged)?;
                 search_seconds.push(search_started.elapsed().as_secs_f64());
+                judged_total += hits.iter().filter(|hit| hit.judge.is_some()).count();
                 let fused_rank = hits
                     .iter()
                     .position(|hit| is_answer(&hit.unit.path, &hit.unit.name))
@@ -178,7 +193,8 @@ impl EvalCommand {
             .copied()
             .unwrap_or_default();
         let summary = json!({
-            "retriever": self.retriever.key(), "outline": self.outline, "judged": judged,
+            "retriever": self.retriever.key(), "outline": self.outline, "judged": judged, "early_stop": early_stop,
+            "mean_judged": judged_total as f64 / search_seconds.len().max(1) as f64,
             "results": tallies.iter().map(|(key, tally)| (key.clone(), tally.to_json())).collect::<serde_json::Map<_, _>>(),
             "median_search_seconds": (median * 1000.0).round() / 1000.0,
             "total_seconds": (started.elapsed().as_secs_f64() * 10.0).round() / 10.0,

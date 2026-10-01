@@ -21,6 +21,9 @@ impl SearchSettings {
     pub const QUESTION_TEMPLATE: &'static str = "This code answers the search: ";
     /// Lines of code shown under each result in the terminal.
     pub const PREVIEW_LINES: usize = 6;
+    /// The judge stops reading candidates once one scores at least this. On the exam it reads a third fewer
+    /// candidates (3.3 instead of 5) with the same answers; at 0.8 it lost two.
+    pub const JUDGE_EARLY_STOP: f64 = 0.9;
 }
 
 /// How projects are read and indexed.

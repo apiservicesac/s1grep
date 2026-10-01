@@ -46,6 +46,24 @@ desktop). Top-1 after fusion; granite alone gets 66.
   candidates and 2.9 s for 10.
 - The default is 5 candidates; `--judge-top 10` trades twice the time for about 4 more right answers in 100.
 
+## The judge stops early at 0.9
+
+The judge reads candidates in the retriever's order and stops once one scores at least 0.9. Measured with
+`s1-lab eval` on the 201-question exam (granite candidates, up to 5 judged):
+
+| Setting | Top-1 | Top-5 | Candidates judged per search |
+|---|---|---|---|
+| Read all 5 | 168 | 189 | 5.00 |
+| Stop at 0.95 | 168 | 189 | 4.06 |
+| Stop at 0.9 | 168 | 189 | 3.33 |
+| Stop at 0.8 | 166 | 189 | 2.82 |
+| Read 3 | 165 | 189 | 3.00 |
+
+Stopping at 0.9 removes a third of the judge's work with the same answers; reading only 3 does about as much work
+and loses 3. Running two judge sessions at once was also tried and is slower on this CPU (1,060 ms per candidate
+instead of 390 ms): the judge is limited by memory bandwidth, not by cores, which is also why more than 4 threads do
+not help.
+
 ## v0.1 on the held-out test
 
 `s1-lab eval` with the shipped settings (granite, the judge reads 5 candidates) on the held-out test of 201 real

@@ -8,6 +8,7 @@ use s1grep::runtime_library::RuntimeLibrary;
 use commands::bench::BenchCommand;
 use commands::decide::DecideCommand;
 use commands::eval::EvalCommand;
+use commands::lengths::LengthsCommand;
 use commands::profile::ProfileCommand;
 use commands::rerank_eval::RerankEvalCommand;
 use commands::units::UnitsCommand;
@@ -34,6 +35,8 @@ enum LabCommand {
     Decide(DecideCommand),
     /// Time the parts of a search that do not use the models, on an existing index
     Profile(ProfileCommand),
+    /// Token lengths of the functions of some repositories, and the embedding work each token cap leaves
+    Lengths(LengthsCommand),
 }
 
 fn main() -> anyhow::Result<()> {
@@ -45,5 +48,6 @@ fn main() -> anyhow::Result<()> {
         LabCommand::Bench(command) => command.run(),
         LabCommand::Decide(command) => command.run(),
         LabCommand::Profile(command) => command.run(),
+        LabCommand::Lengths(command) => command.run(),
     }
 }
