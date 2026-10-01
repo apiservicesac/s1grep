@@ -187,6 +187,7 @@ impl SearchServer {
             }
         }
         self.info.remove();
+        eprintln!("s1grep server: process {} stopped", std::process::id());
         Ok(())
     }
 

@@ -8,7 +8,7 @@ use serde::Deserialize;
 use s1_engine::{Accelerator, Embedder, EmbedderBundle};
 
 const MINIMUM_COSINE: f32 = 0.999;
-const BUNDLES: [&str; 2] = ["granite-278m-onnx", "qwen3-embedding-0.6b-onnx"];
+const BUNDLES: [&str; 3] = ["granite-278m-onnx", "granite-97m-r2-onnx", "qwen3-embedding-0.6b-onnx"];
 
 #[derive(Deserialize)]
 struct EmbedderFixture {

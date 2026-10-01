@@ -64,6 +64,31 @@ and loses 3. Running two judge sessions at once was also tried and is slower on 
 instead of 390 ms): the judge is limited by memory bandwidth, not by cores, which is also why more than 4 threads do
 not help.
 
+## Faster embedding: what was tried for 0.3.0
+
+Measured on the 201-question exam and with `s1-lab embed-bench` (the same 400 functions, an 8-core AVX2 CPU without
+VNNI). Speed is relative to granite-embedding-278m-multilingual in FP32.
+
+| Retriever | Speed, whole / outline | Top-1 | Top-5 |
+|---|---|---|---|
+| granite 278M, FP32 (shipped) | 1× / 1× | 168 | 189 |
+| granite-embedding-97m-multilingual-r2 | 2.3× / 3.3× | 154 | 178 |
+| granite 278M, dynamic INT8 per channel | 1.25× | 147 | 175 |
+| granite 278M, dynamic INT8, MatMul only, reduced range | 1.3× | 163 | 188 |
+
+None keeps the exam, so the retriever stays as it is. Published benchmark scores did not carry over to these code
+searches. More threads (16 instead of 8) add 5–10 %, larger batches are slower, and a lower token cap saves little:
+the median function has about 160 tokens, so a 384-token cap still does 90–94 % of the work (`s1-lab lengths`).
+
+## Outlines keep four lines
+
+| Outline | Speed | Top-1 | Top-5 |
+|---|---|---|---|
+| Path, name and the first 4 lines (320 characters) | 1× | 135 | 167 |
+| Path, name and the first 2 lines (160 characters) | 1.05× | 129 | 149 |
+
+The path and the name are most of an outline's tokens, so shorter outlines are barely faster and clearly worse.
+
 ## v0.1 on the held-out test
 
 `s1-lab eval` with the shipped settings (granite, the judge reads 5 candidates) on the held-out test of 201 real

@@ -9,8 +9,10 @@ use crate::settings::CacheSettings;
 
 /// The project a search belongs to: the folder whose index it uses, and the part of it the search covers.
 ///
-/// Searching a subfolder reuses the project's index instead of building another one. The root is the highest
-/// folder above the target that already has an index, otherwise the nearest one holding `.git`, otherwise the target.
+/// Searching a subfolder reuses its project's index instead of building another one. Within a git repository the
+/// project is the highest indexed folder that is not above the repository, else the repository itself; outside any
+/// repository it is the nearest indexed folder, else the target. An index of a folder that holds many projects
+/// (one search from a home or workspace folder) is therefore never imposed on the repositories inside it.
 #[derive(Debug, Clone)]
 pub struct Project {
     pub root: PathBuf,
@@ -25,20 +27,21 @@ impl Project {
         if !target.is_dir() {
             bail!("{} is not a folder", target.display());
         }
-        let mut indexed = None;
+        let repository = target.ancestors().find(|ancestor| ancestor.join(".git").exists());
+        let mut indexed = Vec::new();
         for ancestor in target.ancestors() {
             if ProjectFolder::exists_for(ancestor)? {
-                indexed = Some(ancestor.to_path_buf());
+                indexed.push(ancestor);
+            }
+            if Some(ancestor) == repository {
+                break;
             }
         }
-        let root = indexed
-            .or_else(|| {
-                target
-                    .ancestors()
-                    .find(|ancestor| ancestor.join(".git").exists())
-                    .map(Path::to_path_buf)
-            })
-            .unwrap_or_else(|| target.clone());
+        let root = match repository {
+            Some(repository) => indexed.last().copied().unwrap_or(repository),
+            None => indexed.first().copied().unwrap_or(&target),
+        }
+        .to_path_buf();
         let relative = target.strip_prefix(&root).unwrap_or(Path::new(""));
         let scope = (!relative.as_os_str().is_empty()).then(|| {
             relative

@@ -149,6 +149,11 @@ impl ModelSettings {
     pub const RETRIEVER_MODEL: &'static str = "granite-embedding-278m-multilingual";
     pub const RETRIEVER_REVISION: &'static str = "b795cbc00b23bcaafbbbba6b242448104cc62ec0";
     pub const RETRIEVER_DIMENSION: usize = 768;
+    /// The smaller retriever under evaluation, exported locally by tools/model-export.
+    pub const SMALL_RETRIEVER_BUNDLE: &'static str = "granite-97m-r2-onnx";
+    pub const SMALL_RETRIEVER_MODEL: &'static str = "granite-embedding-97m-multilingual-r2";
+    pub const SMALL_RETRIEVER_REVISION: &'static str = "835ad14087e140460703cf0fae09f97d469d65c2";
+    pub const SMALL_RETRIEVER_DIMENSION: usize = 384;
     /// Keys the vectors of s1grep 0.2.4 and earlier were stored under: whole sources and outlines of this retriever.
     pub const LEGACY_WHOLE_SPACE: &'static str = "granite";
     pub const LEGACY_OUTLINE_SPACE: &'static str = "granite-outline";

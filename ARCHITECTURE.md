@@ -45,7 +45,8 @@ s1grep "query" PATH
                                                                                         │ TCP 127.0.0.1, token,
   SearchServer (one request at a time) ◄─────────────────────────────────────────────────┘ JSON lines, progress stream
   └─ SearchService::search
-       ├─ Project::locate      root = highest ancestor with an index, else nearest .git, else PATH; scope = subfolder
+       ├─ Project::locate      root = highest indexed folder within the repository, else the repository; outside
+       │                       a repository the nearest indexed folder, else PATH; scope = subfolder
        ├─ IndexLock            per-project file lock; if another process holds it, search what is indexed
        ├─ Indexer::scan        parallel walk (ignore files), size/mtime gate, blake3, tree-sitter → units
        ├─ few units missing    embed their whole source now

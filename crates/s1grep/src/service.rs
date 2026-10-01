@@ -84,6 +84,9 @@ pub struct IndexingProgress {
     pub done: usize,
     pub total: usize,
     pub seconds_left: Option<f64>,
+    /// Time until every function has at least an outline vector, i.e. the whole project can be searched.
+    #[serde(default)]
+    pub searchable_seconds_left: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -111,6 +114,12 @@ impl SearchResponse {
     }
 }
 
+/// Functions of a project still missing a vector, for each pass.
+struct PendingWork {
+    whole: usize,
+    outline: usize,
+}
+
 /// A project the background process keeps indexing between searches, holding its lock until it is done.
 struct IndexingJob {
     project: Project,
@@ -126,20 +135,34 @@ struct IndexingJob {
     first_step: Option<Instant>,
     done: usize,
     total: usize,
+    /// The same for the outline pass, which makes the whole project searchable.
+    outline_first_step: Option<Instant>,
+    outline_done: usize,
+    outline_total: usize,
     /// Consecutive failed steps; the job is dropped after `IndexSettings::JOB_ATTEMPTS` of them.
     failures: u32,
 }
 
 impl IndexingJob {
     fn progress(&self) -> IndexingProgress {
-        let elapsed = self.first_step.map_or(0.0, |first| first.elapsed().as_secs_f64());
-        let measured = self.done >= IndexSettings::ESTIMATE_AFTER && elapsed > 0.0;
-        let rate = if measured { self.done as f64 / elapsed } else { 0.0 };
         IndexingProgress {
             done: self.done,
             total: self.total,
-            seconds_left: (rate > 0.0).then(|| self.total.saturating_sub(self.done) as f64 / rate),
+            seconds_left: Self::time_left(self.first_step, self.done, self.total),
+            searchable_seconds_left: if self.pass == Pass::Outline {
+                Self::time_left(self.outline_first_step, self.outline_done, self.outline_total)
+            } else {
+                None
+            },
         }
+    }
+
+    /// Time left at the pace measured since `first_step`, once enough is done for the pace to mean something.
+    fn time_left(first_step: Option<Instant>, done: usize, total: usize) -> Option<f64> {
+        let elapsed = first_step.map_or(0.0, |first| first.elapsed().as_secs_f64());
+        let measured = done >= IndexSettings::ESTIMATE_AFTER && elapsed > 0.0;
+        let rate = if measured { done as f64 / elapsed } else { 0.0 };
+        (rate > 0.0).then(|| total.saturating_sub(done) as f64 / rate)
     }
 }
 
@@ -187,6 +210,7 @@ impl SearchService {
         };
         let whole = Pass::Whole.key(self.retriever);
         let mut total_pending = 0;
+        let mut outline_pending = 0;
         if has_job || lock.is_some() {
             let mut indexer = Indexer {
                 store: &mut session.store,
@@ -210,6 +234,7 @@ impl SearchService {
             };
             // Whatever is still missing, here or elsewhere in the project, is left to the background process.
             total_pending = indexer.store.pending_count(&whole, None)?;
+            outline_pending = indexer.store.pending_count(&Pass::Outline.key(self.retriever), None)?;
             if report.changed > 0 || report.removed > 0 || embedded > 0 {
                 session.mark_changed();
             }
@@ -232,7 +257,14 @@ impl SearchService {
         let search_seconds = started.elapsed().as_secs_f64();
         let judged = hits.iter().filter(|hit| hit.judge.is_some()).count();
         if total_pending > 0 {
-            self.schedule(&project, lock, total_pending);
+            self.schedule(
+                &project,
+                lock,
+                PendingWork {
+                    whole: total_pending,
+                    outline: outline_pending,
+                },
+            );
         }
         let results = hits
             .into_iter()
@@ -269,7 +301,7 @@ impl SearchService {
     }
 
     /// Hands a project to the background indexing, the searched folder first.
-    fn schedule(&mut self, project: &Project, lock: Option<IndexLock>, total: usize) {
+    fn schedule(&mut self, project: &Project, lock: Option<IndexLock>, totals: PendingWork) {
         if let Some(job) = self.jobs.iter_mut().find(|job| job.project.root == project.root) {
             if job.project.scope != project.scope {
                 job.project.scope = project.scope.clone();
@@ -286,7 +318,10 @@ impl SearchService {
                 started: Instant::now(),
                 first_step: None,
                 done: 0,
-                total,
+                total: totals.whole,
+                outline_first_step: None,
+                outline_done: 0,
+                outline_total: totals.outline,
                 failures: 0,
             });
         }
@@ -309,9 +344,13 @@ impl SearchService {
             let Ok(lock) = IndexLock::acquire(&project.folder)? else {
                 continue;
             };
-            let total = self.sessions.get(&project)?.store.pending_count(&whole, None)?;
-            if total > 0 {
-                self.schedule(&project, Some(lock), total);
+            let store = &self.sessions.get(&project)?.store;
+            let totals = PendingWork {
+                whole: store.pending_count(&whole, None)?,
+                outline: store.pending_count(&Pass::Outline.key(self.retriever), None)?,
+            };
+            if totals.whole > 0 {
+                self.schedule(&project, Some(lock), totals);
                 resumed += 1;
             }
         }
@@ -384,9 +423,15 @@ impl SearchService {
         let rows: Vec<(String, Vec<f32>)> = batch.iter().map(|stored| stored.content.clone()).zip(vectors).collect();
         store.store_vectors(&key, &rows)?;
         session.mark_changed();
-        if job.pass == Pass::Whole {
-            job.first_step.get_or_insert_with(Instant::now);
-            job.done += rows.len();
+        match job.pass {
+            Pass::Whole => {
+                job.first_step.get_or_insert_with(Instant::now);
+                job.done += rows.len();
+            }
+            Pass::Outline => {
+                job.outline_first_step.get_or_insert_with(Instant::now);
+                job.outline_done += rows.len();
+            }
         }
         Ok(())
     }

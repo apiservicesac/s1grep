@@ -8,6 +8,19 @@ All notable changes to `s1grep` are documented here. Versions follow [Semantic V
 - The judge stops reading candidates once one scores at least 0.9: a third fewer judge runs per search (3.3 instead
   of 5) with the same exam results.
 
+### Added
+- When less than half of a project can be searched yet, the search says so plainly, with the time until all of it
+  can be searched.
+- The background process writes a line to its log when it stops.
+
+### Fixed
+- A search from a folder that holds many projects (a home or workspace folder) no longer takes over the projects
+  inside it: within a git repository the project is never a folder above the repository, and outside one it is the
+  nearest indexed folder. Before, one search from such a folder made every later search re-read all of it.
+- Outline vectors use the first four lines of each function again, as measured: since 0.2.4 they used two, which
+  found the right function first 129 times out of 201 instead of 135 (top-5: 149 instead of 167). Outline vectors are
+  recomputed once in the background.
+
 ## [0.2.6] — 2026-10-01
 
 ### Added

@@ -13,6 +13,9 @@ use crate::settings::ModelSettings;
 pub enum Retriever {
     /// granite-embedding-278m-multilingual: fast to index on a CPU
     Granite,
+    /// granite-embedding-97m-multilingual-r2: about a third of the size (under evaluation)
+    #[value(hide = true)]
+    GraniteSmall,
     /// Qwen3-Embedding-0.6B: better candidates, about 6 times slower to index (not shipped yet)
     #[value(hide = true)]
     Qwen3,
@@ -22,6 +25,7 @@ impl Retriever {
     pub fn bundle_name(self) -> &'static str {
         match self {
             Self::Granite => ModelSettings::RETRIEVER_BUNDLE,
+            Self::GraniteSmall => ModelSettings::SMALL_RETRIEVER_BUNDLE,
             Self::Qwen3 => "qwen3-embedding-0.6b-onnx",
         }
     }
@@ -30,6 +34,7 @@ impl Retriever {
     pub fn key(self) -> &'static str {
         match self {
             Self::Granite => "granite",
+            Self::GraniteSmall => "granite-small",
             Self::Qwen3 => "qwen3",
         }
     }
@@ -41,6 +46,12 @@ impl Retriever {
                 model: ModelSettings::RETRIEVER_MODEL,
                 revision: ModelSettings::RETRIEVER_REVISION,
                 dimension: ModelSettings::RETRIEVER_DIMENSION,
+                text_format,
+            },
+            Self::GraniteSmall => EmbeddingSpace {
+                model: ModelSettings::SMALL_RETRIEVER_MODEL,
+                revision: ModelSettings::SMALL_RETRIEVER_REVISION,
+                dimension: ModelSettings::SMALL_RETRIEVER_DIMENSION,
                 text_format,
             },
             Self::Qwen3 => EmbeddingSpace {

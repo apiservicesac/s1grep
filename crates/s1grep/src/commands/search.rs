@@ -118,6 +118,21 @@ impl SearchArgs {
             "{coverage} · search {:.1} s · total {:.1} s · {source}",
             response.search_seconds, total
         )));
+        // When most of a project cannot be searched yet, a missing answer is likely just not indexed: say so plainly.
+        if response.searchable * 2 < response.functions {
+            let ready = response
+                .indexing
+                .as_ref()
+                .and_then(|indexing| indexing.searchable_seconds_left)
+                .map(|seconds| format!(" It will all be searchable in ~{}.", Units::duration(seconds)))
+                .unwrap_or_default();
+            display.line(&display.warn(&format!(
+                "Only {} % of this project can be searched yet ({} of {} functions); the answer may be in the rest.{ready}",
+                response.searchable * 100 / response.functions.max(1),
+                Units::count(response.searchable),
+                Units::count(response.functions)
+            )));
+        }
         if response.is_complete() {
             return;
         }

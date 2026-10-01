@@ -119,6 +119,11 @@ impl Embedder {
         })
     }
 
+    /// Texts per run; longer runs pad less when texts are sorted by length but use more memory.
+    pub fn set_batch_size(&mut self, batch_size: usize) {
+        self.batch_size = batch_size.max(1);
+    }
+
     /// Vectors for code units, in the order given.
     pub fn embed_documents(&mut self, texts: &[String]) -> Result<Vec<Vec<f32>>, EngineError> {
         let prompt = self.config.document_prompt.clone();

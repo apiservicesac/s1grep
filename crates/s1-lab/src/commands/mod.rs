@@ -1,5 +1,6 @@
 pub mod bench;
 pub mod decide;
+pub mod embed_bench;
 pub mod eval;
 pub mod lengths;
 pub mod profile;

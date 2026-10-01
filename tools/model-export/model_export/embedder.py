@@ -28,6 +28,7 @@ class EmbedderSpec:
 
 EMBEDDERS = {
     "granite": EmbedderSpec("ibm-granite/granite-embedding-278m-multilingual", "granite-278m-onnx", "cls", 512),
+    "granite-97m": EmbedderSpec("ibm-granite/granite-embedding-97m-multilingual-r2", "granite-97m-r2-onnx", "cls", 512),
     "qwen3": EmbedderSpec("Qwen/Qwen3-Embedding-0.6B", "qwen3-embedding-0.6b-onnx", "last", 512,
                           "Instruct: Given a question about what some code does, retrieve the function that implements it\n"
                           "Query: "),
