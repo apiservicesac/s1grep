@@ -2,6 +2,8 @@
 
 use std::time::Duration;
 
+use crate::languages::{Container, LanguageSpec};
+
 /// What becomes a searchable code unit and how it is stored.
 pub struct IndexLimits;
 
@@ -36,4 +38,214 @@ impl FusionTable {
     pub const UP_TO_FIVE: (f64, f64) = (0.55, 5.0);
     pub const UP_TO_TEN: (f64, f64) = (0.65, 1.0);
     pub const MORE: (f64, f64) = (0.75, 10.0);
+}
+
+/// The languages s1grep reads. Python has its own extractor, the one its training data and exams were built with;
+/// the others are read through a tree-sitter query each. A language's version goes up whenever its query or rules
+/// change, so the files read with the older version are read again.
+pub struct LanguageSettings;
+
+impl LanguageSettings {
+    pub const PYTHON: &'static str = "python";
+    pub const PYTHON_VERSION: &'static str = "python-1";
+    pub const PYTHON_EXTENSIONS: &'static [&'static str] = &["py"];
+
+    const JAVASCRIPT_CONTAINERS: &'static [Container] = &[
+        Container {
+            kind: "class_declaration",
+            field: "name",
+        },
+        Container {
+            kind: "class",
+            field: "name",
+        },
+        Container {
+            kind: "abstract_class_declaration",
+            field: "name",
+        },
+    ];
+    const JAVASCRIPT_FUNCTIONS: &'static [&'static str] = &[
+        "function_declaration",
+        "generator_function_declaration",
+        "function_expression",
+        "arrow_function",
+        "method_definition",
+        "function",
+    ];
+
+    pub fn specs() -> Vec<LanguageSpec> {
+        vec![
+            LanguageSpec {
+                name: "javascript",
+                version: 1,
+                extensions: &["js", "jsx", "mjs", "cjs"],
+                grammar: || tree_sitter_javascript::LANGUAGE.into(),
+                query: include_str!("queries/javascript.scm"),
+                containers: Self::JAVASCRIPT_CONTAINERS,
+                functions: Self::JAVASCRIPT_FUNCTIONS,
+            },
+            LanguageSpec {
+                name: "typescript",
+                version: 1,
+                extensions: &["ts", "mts", "cts"],
+                grammar: || tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
+                query: include_str!("queries/typescript.scm"),
+                containers: Self::JAVASCRIPT_CONTAINERS,
+                functions: Self::JAVASCRIPT_FUNCTIONS,
+            },
+            LanguageSpec {
+                name: "tsx",
+                version: 1,
+                extensions: &["tsx"],
+                grammar: || tree_sitter_typescript::LANGUAGE_TSX.into(),
+                query: include_str!("queries/typescript.scm"),
+                containers: Self::JAVASCRIPT_CONTAINERS,
+                functions: Self::JAVASCRIPT_FUNCTIONS,
+            },
+            LanguageSpec {
+                name: "go",
+                version: 1,
+                extensions: &["go"],
+                grammar: || tree_sitter_go::LANGUAGE.into(),
+                query: include_str!("queries/go.scm"),
+                containers: &[],
+                functions: &["function_declaration", "method_declaration", "func_literal"],
+            },
+            LanguageSpec {
+                name: "java",
+                version: 1,
+                extensions: &["java"],
+                grammar: || tree_sitter_java::LANGUAGE.into(),
+                query: include_str!("queries/java.scm"),
+                containers: &[
+                    Container {
+                        kind: "class_declaration",
+                        field: "name",
+                    },
+                    Container {
+                        kind: "interface_declaration",
+                        field: "name",
+                    },
+                    Container {
+                        kind: "enum_declaration",
+                        field: "name",
+                    },
+                    Container {
+                        kind: "record_declaration",
+                        field: "name",
+                    },
+                ],
+                functions: &["method_declaration", "constructor_declaration", "lambda_expression"],
+            },
+            LanguageSpec {
+                name: "php",
+                version: 1,
+                extensions: &["php"],
+                grammar: || tree_sitter_php::LANGUAGE_PHP.into(),
+                query: include_str!("queries/php.scm"),
+                containers: &[
+                    Container {
+                        kind: "class_declaration",
+                        field: "name",
+                    },
+                    Container {
+                        kind: "trait_declaration",
+                        field: "name",
+                    },
+                    Container {
+                        kind: "interface_declaration",
+                        field: "name",
+                    },
+                    Container {
+                        kind: "enum_declaration",
+                        field: "name",
+                    },
+                ],
+                functions: &[
+                    "function_definition",
+                    "method_declaration",
+                    "anonymous_function",
+                    "arrow_function",
+                ],
+            },
+            LanguageSpec {
+                name: "rust",
+                version: 1,
+                extensions: &["rs"],
+                grammar: || tree_sitter_rust::LANGUAGE.into(),
+                query: include_str!("queries/rust.scm"),
+                containers: &[
+                    Container {
+                        kind: "impl_item",
+                        field: "type",
+                    },
+                    Container {
+                        kind: "trait_item",
+                        field: "name",
+                    },
+                ],
+                functions: &["function_item", "closure_expression"],
+            },
+            LanguageSpec {
+                name: "ruby",
+                version: 1,
+                extensions: &["rb"],
+                grammar: || tree_sitter_ruby::LANGUAGE.into(),
+                query: include_str!("queries/ruby.scm"),
+                containers: &[
+                    Container {
+                        kind: "class",
+                        field: "name",
+                    },
+                    Container {
+                        kind: "module",
+                        field: "name",
+                    },
+                ],
+                functions: &["method", "singleton_method", "lambda", "block", "do_block"],
+            },
+            LanguageSpec {
+                name: "csharp",
+                version: 1,
+                extensions: &["cs"],
+                grammar: || tree_sitter_c_sharp::LANGUAGE.into(),
+                query: include_str!("queries/csharp.scm"),
+                containers: &[
+                    Container {
+                        kind: "class_declaration",
+                        field: "name",
+                    },
+                    Container {
+                        kind: "struct_declaration",
+                        field: "name",
+                    },
+                    Container {
+                        kind: "interface_declaration",
+                        field: "name",
+                    },
+                    Container {
+                        kind: "record_declaration",
+                        field: "name",
+                    },
+                ],
+                functions: &[
+                    "method_declaration",
+                    "constructor_declaration",
+                    "local_function_statement",
+                    "lambda_expression",
+                    "anonymous_method_expression",
+                ],
+            },
+        ]
+    }
+
+    /// Every file extension s1grep reads, without the dot.
+    pub fn extensions() -> Vec<String> {
+        Self::PYTHON_EXTENSIONS
+            .iter()
+            .copied()
+            .chain(Self::specs().iter().flat_map(|spec| spec.extensions.iter().copied()))
+            .map(ToString::to_string)
+            .collect()
+    }
 }

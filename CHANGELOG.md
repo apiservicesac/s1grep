@@ -2,6 +2,16 @@
 
 All notable changes to `s1grep` are documented here. Versions follow [Semantic Versioning](https://semver.org).
 
+## [Unreleased]
+
+### Added
+- JavaScript, TypeScript (with TSX), Go, Java, PHP, Rust, Ruby and C#, each read through a tree-sitter query
+  (`docs/languages.md`). Python keeps its extractor, so its results do not change. Each file records the extractor
+  version that read it, and a file is read again only when its language's extractor changes.
+- Default ignore rules for the test, build and generated files of those ecosystems (`test/`, `__tests__/`,
+  `*.test.*`, `*.spec.*`, `*_test.go`, `target/`, `obj/`, `*.min.js`, `*.bundle.js`). An ignore file that still holds
+  the defaults of an earlier version is updated; an edited one is left alone.
+
 ## [0.2.5] — 2026-10-01
 
 ### Added

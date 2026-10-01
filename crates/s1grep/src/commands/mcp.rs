@@ -69,7 +69,7 @@ impl McpServer {
             "name": McpSettings::TOOL,
             "title": "Search code by what it does",
             "description": "Find the functions that do what the query describes, in English or Spanish, ranked by a \
-                local judge model. Returns each function's file, lines, match probability and code. Python only.",
+                local judge model. Returns each function's file, lines, match probability and code.",
             "inputSchema": {
                 "type": "object",
                 "properties": {

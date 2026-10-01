@@ -29,10 +29,11 @@ pub struct IndexSettings;
 impl IndexSettings {
     /// Default ignore rules, written to the user's config folder on first use so they can be edited.
     pub const DEFAULT_IGNORE: &'static str = include_str!("../assets/default.s1grepignore");
+    /// Fingerprints of the default rules earlier versions wrote, so an unedited copy is brought up to date.
+    pub const EARLIER_DEFAULT_IGNORES: [&'static str; 1] =
+        ["ed12cf16befc28361eee70ad1f080a8591f7ae072f32e0e90edb9d9cc161715b"];
     /// Per-folder ignore file, read wherever it appears inside a project.
     pub const FOLDER_IGNORE_FILE: &'static str = ".s1grepignore";
-    /// Source files read; the extractor understands Python only for now.
-    pub const EXTENSIONS: [&'static str; 1] = ["py"];
     /// Larger files are generated code or data.
     pub const MAXIMUM_FILE_BYTES: u64 = 1_000_000;
     /// Functions embedded per step: small enough to report progress often.
@@ -267,7 +268,7 @@ impl McpSettings {
     pub const PREVIEW_LINES: usize = 40;
     pub const INSTRUCTIONS: &'static str = "s1grep finds functions by what they do, from a description in English or \
         Spanish, and returns their file, lines and code. Use it when you know the behaviour but not where it lives; \
-        use grep for exact names or strings. It reads Python repositories.";
+        use grep for exact names or strings. It reads Python, JavaScript, TypeScript, Go, Java, PHP, Rust, Ruby and C#.";
 }
 
 /// The user's configuration folder: `$XDG_CONFIG_HOME/s1grep`, `~/.config/s1grep`, or `%APPDATA%\s1grep`.
@@ -292,7 +293,11 @@ impl ConfigDirectory {
     /// The global ignore file, created with the default rules the first time it is needed.
     pub fn ignore_file() -> anyhow::Result<PathBuf> {
         let path = Self::root()?.join(Self::IGNORE_FILE);
-        if !path.exists() {
+        // A file still holding an earlier version of the defaults was never edited: it gets the current defaults.
+        let unedited = std::fs::read(&path).is_ok_and(|text| {
+            IndexSettings::EARLIER_DEFAULT_IGNORES.contains(&s1_index::ContentFingerprint::of(&text).as_str())
+        });
+        if !path.exists() || unedited {
             if let Some(parent) = path.parent() {
                 std::fs::create_dir_all(parent).with_context(|| format!("creating {}", parent.display()))?;
             }

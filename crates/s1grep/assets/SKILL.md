@@ -1,6 +1,6 @@
 ---
 name: s1grep
-description: Find where behaviour lives in a Python repository by describing what the code does, in English or Spanish. Use it before broad text searches when you know what the code should do but not what it is called. For exact names, strings or filenames, use grep instead.
+description: Find where behaviour lives in a repository by describing what the code does, in English or Spanish. Use it before broad text searches when you know what the code should do but not what it is called. For exact names, strings or filenames, use grep instead.
 ---
 
 # s1grep
@@ -21,7 +21,8 @@ s1grep "export rows to csv" . --json
 - Each result shows `file:start-end`, the function name, the judge's probability and its first lines. `--json` returns the
   same with the whole source of each function.
 - Tests, migrations and dependency folders are skipped by the ignore rules (`~/.config/s1grep/ignore`, `.s1grepignore`).
-- Only Python files are searched.
+- Python, JavaScript, TypeScript, Go, Java, PHP, Rust, Ruby and C# files are searched; the ranking model was trained
+  on Python and is most reliable there.
 
 ## Setup
 

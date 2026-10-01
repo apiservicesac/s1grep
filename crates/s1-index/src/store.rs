@@ -23,6 +23,8 @@ pub struct FileState {
     pub hash: String,
     pub size: u64,
     pub modified: i64,
+    /// Name and version of the extractor that split the file into units, e.g. `go-1`.
+    pub extractor: String,
 }
 
 /// How much of a project (or of a folder inside it) has vectors.
@@ -115,7 +117,7 @@ impl IndexStore {
     pub fn file_states(&self) -> Result<std::collections::HashMap<String, FileState>, IndexError> {
         let mut statement = self
             .connection
-            .prepare("SELECT path, hash, size, modified FROM files")?;
+            .prepare("SELECT path, hash, size, modified, extractor FROM files")?;
         let rows = statement.query_map([], |row| {
             Ok((
                 row.get::<_, String>(0)?,
@@ -123,6 +125,7 @@ impl IndexStore {
                     hash: row.get(1)?,
                     size: row.get::<_, i64>(2)? as u64,
                     modified: row.get(3)?,
+                    extractor: row.get(4)?,
                 },
             ))
         })?;
@@ -151,8 +154,8 @@ impl IndexStore {
         let transaction = self.connection.savepoint()?;
         transaction.execute("DELETE FROM units WHERE path = ?1", [path])?;
         transaction.execute(
-            "INSERT OR REPLACE INTO files (path, hash, size, modified) VALUES (?1, ?2, ?3, ?4)",
-            params![path, state.hash, state.size as i64, state.modified],
+            "INSERT OR REPLACE INTO files (path, hash, size, modified, extractor) VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![path, state.hash, state.size as i64, state.modified, state.extractor],
         )?;
         for unit in units {
             transaction.execute(
@@ -448,6 +451,7 @@ mod tests {
             hash: "hash".to_string(),
             size: 1,
             modified: 1,
+            extractor: "python-1".to_string(),
         }
     }
 
@@ -465,7 +469,7 @@ mod tests {
             .unwrap()
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 1);
+        assert_eq!(version, 2);
         Connection::open(&catalog)
             .unwrap()
             .execute_batch("PRAGMA user_version = 99")

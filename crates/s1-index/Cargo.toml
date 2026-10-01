@@ -10,6 +10,14 @@ authors.workspace = true
 [dependencies]
 tree-sitter = "0.27"
 tree-sitter-python = "0.25"
+tree-sitter-javascript = "0.25"
+tree-sitter-typescript = "0.23"
+tree-sitter-go = "0.25"
+tree-sitter-java = "0.23"
+tree-sitter-php = "0.24"
+tree-sitter-rust = "0.24"
+tree-sitter-ruby = "0.23"
+tree-sitter-c-sharp = "0.23"
 ignore = "0.4"
 rusqlite = { version = "0.40", features = ["bundled"] }
 blake3 = "1.8"

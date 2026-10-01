@@ -9,10 +9,12 @@ A local, general-purpose code search: you describe what code does, in English or
 functions that do it. An embedding model brings candidates; s1-code, a small decision model, reads the best of them and
 reorders them. Everything runs on the user's CPU; nothing leaves the machine.
 
-Scope today: Python repositories only, and s1-code v3 was trained on Python only. Measured on other languages, the
-judge helps on Java and PHP, is neutral on Ruby and hurts on JavaScript and Go
-([0000](docs/decisions/0000-engine-measurements.md#other-programming-languages)). Stage 4 adds languages with the judge
-enabled only where it helps; stage 6 trains a judge on several languages.
+Languages: Python, JavaScript, TypeScript (and TSX), Go, Java, PHP, Rust, Ruby and C#. Python keeps the extractor its
+training data and exams were built with; the others are read through one tree-sitter query each
+(`crates/s1-index/src/queries/*.scm`, registered in `LanguageSettings`). s1-code v3 was trained on Python only:
+measured on other languages it helps on Java and PHP, is neutral on Ruby and hurts on JavaScript and Go
+([0000](docs/decisions/0000-engine-measurements.md#other-programming-languages)); a judge trained on several languages
+(s1-code v4) is planned.
 
 Principles that every change keeps:
 

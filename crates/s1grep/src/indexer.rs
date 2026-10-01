@@ -3,7 +3,7 @@ use std::time::{Duration, Instant, UNIX_EPOCH};
 
 use s1_engine::Embedder;
 use s1_index::{
-    CodeUnit, ContentFingerprint, FileState, IndexLimits, IndexStore, PythonExtractor, SourceWalker, WalkOptions,
+    CodeUnit, ContentFingerprint, ExtractorRegistry, FileState, IndexLimits, IndexStore, SourceWalker, WalkOptions,
 };
 
 use crate::models::Retriever;
@@ -90,7 +90,7 @@ impl Indexer<'_> {
                 report.removed += 1;
             }
         }
-        let mut extractor = PythonExtractor::new()?;
+        let mut extractors = ExtractorRegistry::new()?;
         let mut known_files = self.store.file_states()?;
         self.store.begin_batch()?;
         for (index, file) in files.iter().enumerate() {
@@ -114,11 +114,13 @@ impl Indexer<'_> {
                 .ok()
                 .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
                 .map_or(0, |time| time.as_nanos() as i64);
+            let Some(extractor) = extractors.version_for(&file.relative) else {
+                continue;
+            };
             let known = known_files.remove(&file.relative);
-            if known
-                .as_ref()
-                .is_some_and(|state| state.size == metadata.len() && state.modified == modified)
-            {
+            if known.as_ref().is_some_and(|state| {
+                state.size == metadata.len() && state.modified == modified && state.extractor == extractor
+            }) {
                 continue;
             }
             let Ok(bytes) = std::fs::read(&file.absolute) else {
@@ -129,12 +131,13 @@ impl Indexer<'_> {
                 hash: ContentFingerprint::of(&bytes),
                 size: metadata.len(),
                 modified,
+                extractor,
             };
-            if known.is_some_and(|previous| previous.hash == state.hash) {
+            if known.is_some_and(|previous| previous.hash == state.hash && previous.extractor == state.extractor) {
                 self.store.touch_file(&file.relative, &state)?;
                 continue;
             }
-            let units = extractor.extract(&file.relative, &String::from_utf8_lossy(&bytes));
+            let units = extractors.extract(&file.relative, &String::from_utf8_lossy(&bytes));
             self.store.replace_file(&file.relative, &state, &units)?;
             report.changed += 1;
         }

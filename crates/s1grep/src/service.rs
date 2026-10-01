@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use anyhow::Context;
-use s1_index::{PathExcludes, VectorRow, WalkOptions};
+use s1_index::{LanguageSettings, PathExcludes, VectorRow, WalkOptions};
 use serde::{Deserialize, Serialize};
 
 use crate::cache::{ProjectFolder, ProjectInfo};
@@ -29,7 +29,7 @@ impl FileFilters {
             folder_ignore_name: IndexSettings::FOLDER_IGNORE_FILE.to_string(),
             excludes: Vec::new(),
             maximum_file_bytes: IndexSettings::MAXIMUM_FILE_BYTES,
-            extensions: IndexSettings::EXTENSIONS.iter().map(ToString::to_string).collect(),
+            extensions: LanguageSettings::extensions(),
         })
     }
 }

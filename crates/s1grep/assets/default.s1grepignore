@@ -6,6 +6,11 @@
 
 # Tests and database migrations
 tests/
+test/
+__tests__/
+*.test.*
+*.spec.*
+*_test.go
 migrations/
 
 # Dependencies and virtual environments
@@ -19,3 +24,10 @@ __pypackages__/
 # Build output
 build/
 dist/
+target/
+obj/
+
+# Generated and minified code
+*.min.js
+*.bundle.js
+*.generated.*

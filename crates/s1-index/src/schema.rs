@@ -15,7 +15,8 @@ impl SchemaMigrations {
     /// written with `IF NOT EXISTS` and also adopts those databases.
     pub const CATALOG: Self = Self {
         database: "main",
-        steps: &["
+        steps: &[
+            "
             CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS files (
                 path TEXT PRIMARY KEY, hash TEXT NOT NULL, size INTEGER NOT NULL, modified INTEGER NOT NULL);
@@ -23,7 +24,11 @@ impl SchemaMigrations {
                 id INTEGER PRIMARY KEY, path TEXT NOT NULL, name TEXT NOT NULL, start_line INTEGER NOT NULL,
                 end_line INTEGER NOT NULL, source TEXT NOT NULL, content TEXT NOT NULL);
             CREATE INDEX IF NOT EXISTS units_by_path ON units(path);
-            CREATE INDEX IF NOT EXISTS units_by_content ON units(content);"],
+            CREATE INDEX IF NOT EXISTS units_by_content ON units(content);",
+            // Which extractor read each file, so a file is read again when its language's extractor changes. Every
+            // file indexed before this column existed was read by the first Python extractor.
+            "ALTER TABLE files ADD COLUMN extractor TEXT NOT NULL DEFAULT 'python-1';",
+        ],
     };
 
     /// The vector cache shared by every project. The `model` column holds an embedding space key.

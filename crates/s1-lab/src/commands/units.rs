@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use clap::Args;
-use s1_index::{PythonExtractor, SourceWalker};
+use s1_index::{ExtractorRegistry, SourceWalker};
 
 use s1grep::service::FileFilters;
 use serde_json::json;
@@ -16,7 +16,7 @@ pub struct UnitsCommand {
 impl UnitsCommand {
     /// Prints one JSON line per function: the same units the index would store.
     pub fn run(self) -> anyhow::Result<()> {
-        let mut extractor = PythonExtractor::new()?;
+        let mut extractor = ExtractorRegistry::new()?;
         let options = FileFilters::default().walk_options()?;
         for file in SourceWalker::new(&self.path, options).files()? {
             let bytes = std::fs::read(&file.absolute)?;

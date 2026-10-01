@@ -1,7 +1,7 @@
 # 0006. Languages are added as data: a grammar, a query and a registry entry
 
 - Status: Accepted (2026-10-01)
-- Implementation: Stage 4.
+- Implementation: done (0.2.6): eight languages beside Python; the judge is used for all of them.
 
 ## Context
 
@@ -21,6 +21,6 @@ to line windows. Results always carry the original bytes and line ranges.
 ## Consequences
 
 - Adding a language needs a grammar crate, one .scm file and exam questions in that language.
-- The registry also records whether the judge is used for that language: s1-code v3 (Python only) helps on Java and
-  PHP but hurts on JavaScript and Go ([0000](0000-engine-measurements.md#other-programming-languages)), so it is
-  enabled per language from exam results until a multi-language judge exists.
+- The judge reads candidates of every language. s1-code v3 was trained on Python only and helps on Java and PHP but
+  hurts on JavaScript and Go ([0000](0000-engine-measurements.md#other-programming-languages)); the README shows
+  these figures, and s1-code v4, trained on several languages, is the fix rather than switching the judge off.

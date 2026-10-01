@@ -47,7 +47,7 @@ irm https://raw.githubusercontent.com/apiservicesac/s1grep/main/update.ps1 | iex
 
 ## How it works
 
-1. **Index.** tree-sitter splits every Python file into functions and methods. An embedding model turns each one into a
+1. **Index.** tree-sitter splits every source file into functions and methods. An embedding model turns each one into a
    vector, stored in a SQLite index under your cache folder, never inside the repository. Only changed files are re-read.
 2. **Retrieve.** The search is embedded with the same model and the 25 nearest functions become candidates.
 3. **Judge.** [s1-code](https://huggingface.co/api-service-sac/s1-code-v3), a small System One decision model
@@ -67,9 +67,10 @@ times against 145 for the embeddings alone, with a median search of 1.5 s on an 
 
 ### Languages
 
-s1grep extracts functions from Python files today; more languages are being added. The embedding model is not language
-specific, and the judge, s1-code v3, was trained on Python. Measured on 100 CodeSearchNet queries per language (25
-embedding candidates from the same repository, the judge reads 10), top-1 out of 100:
+s1grep reads Python, JavaScript (`.js`, `.jsx`, `.mjs`, `.cjs`), TypeScript (`.ts`, `.tsx`), Go, Java, PHP, Rust, Ruby
+and C#, splitting each file into its functions and methods. The embedding model is multilingual and not specific to a
+programming language; the judge, s1-code v3, was trained on Python. Measured on 100 CodeSearchNet queries per language
+(25 embedding candidates from the same repository, the judge reads 10), top-1 out of 100:
 
 | Language | Embeddings alone | With the judge | Effect of the judge |
 |---|---|---|---|
@@ -163,7 +164,7 @@ Both can also be rebuilt from the original checkpoints with `tools/model-export`
 | Path | Contents |
 |---|---|
 | `crates/s1-engine` | Typed questions, Laya sequence encoding, ONNX Runtime sessions, calibrated answers, embedders |
-| `crates/s1-index` | Python function extraction, repository walking, the SQLite index, vector ranking and rank fusion |
+| `crates/s1-index` | Function extraction for every supported language (tree-sitter queries in `src/queries`), repository walking, the SQLite index, the vector index and rank fusion |
 | `crates/s1grep` | The product as a library and the `s1grep` binary: search service, background process, MCP server, model installer |
 | `crates/s1-lab` | Development only, never released: the exam, judge reranking, benchmarks |
 | `tools/model-export` | Development only: exports models to ONNX and records parity fixtures from Python |
