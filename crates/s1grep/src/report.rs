@@ -3,6 +3,7 @@ use std::fmt::Write;
 use console::Style;
 use std::path::Path;
 
+use crate::progress::Units;
 use crate::searcher::FoundBy;
 use crate::service::SearchResponse;
 use crate::settings::DisplaySettings;
@@ -104,5 +105,45 @@ impl TextReport<'_> {
     /// Styles for the terminal; `color` is false for agents and when output is redirected.
     fn styled(&self, text: &str, style: Style) -> String {
         style.force_styling(self.color).apply_to(text).to_string()
+    }
+}
+
+/// What a search over a project still being indexed should say, the same in the terminal and to agents.
+pub struct CoverageNote;
+
+impl CoverageNote {
+    /// When most of the project cannot be searched yet, a missing answer is likely just not indexed: said plainly.
+    pub fn warning(response: &SearchResponse) -> Option<String> {
+        if response.searchable * 2 >= response.functions {
+            return None;
+        }
+        let ready = response
+            .indexing
+            .as_ref()
+            .and_then(|indexing| indexing.searchable_seconds_left)
+            .map(|seconds| format!(" It will all be searchable in ~{}.", Units::duration(seconds)))
+            .unwrap_or_default();
+        Some(format!(
+            "Only {} % of this project can be searched yet ({} of {} functions); the answer may be in the rest.{ready}",
+            response.searchable * 100 / response.functions.max(1),
+            Units::count(response.searchable),
+            Units::count(response.functions)
+        ))
+    }
+
+    /// While the background process indexes the project: how far it got and that results will improve.
+    pub fn indexing(response: &SearchResponse) -> Option<String> {
+        let indexing = response.indexing.as_ref()?;
+        if response.is_complete() {
+            return None;
+        }
+        let left = indexing
+            .seconds_left
+            .map(|seconds| format!(" · ~{} left", Units::duration(seconds)))
+            .unwrap_or_default();
+        Some(format!(
+            "Indexing continues in the background ({} %{left}); results improve as it completes.",
+            response.indexed * 100 / response.functions.max(1)
+        ))
     }
 }

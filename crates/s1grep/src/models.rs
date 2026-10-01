@@ -1,6 +1,5 @@
 use std::path::PathBuf;
 
-use anyhow::bail;
 use clap::{Args, ValueEnum};
 
 use s1_index::EmbeddingSpace;
@@ -78,6 +77,26 @@ impl Retriever {
     }
 }
 
+/// A model bundle that is not in the models folder.
+#[derive(Debug)]
+pub struct MissingModel {
+    pub bundle: String,
+    pub folder: PathBuf,
+}
+
+impl std::fmt::Display for MissingModel {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "model {} is not in {}; run `s1grep setup` to download the models",
+            self.bundle,
+            self.folder.display()
+        )
+    }
+}
+
+impl std::error::Error for MissingModel {}
+
 /// Where the model bundles live: `--models`, `S1GREP_MODELS`, or `~/.cache/s1grep/models`.
 #[derive(Args, Clone)]
 pub struct ModelDirectory {
@@ -104,10 +123,11 @@ impl ModelDirectory {
         let root = self.resolved()?;
         let directory = root.join(name);
         if !directory.is_dir() {
-            bail!(
-                "model {name} is not in {}; run `s1grep setup` to download the models",
-                root.display()
-            );
+            return Err(MissingModel {
+                bundle: name.to_string(),
+                folder: root,
+            }
+            .into());
         }
         Ok(directory)
     }

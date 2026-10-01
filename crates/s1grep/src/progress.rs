@@ -29,6 +29,14 @@ pub enum IndexEvent {
     Outlining { done: usize, total: usize, seconds: f64 },
     /// Computing vectors for the functions that have none yet.
     Embedding { done: usize, total: usize, seconds: f64 },
+    /// Background indexing of a project followed by `s1grep index`: making it searchable (outlines), then indexing
+    /// whole sources, with the time left when it is known.
+    Background {
+        searchable: bool,
+        done: usize,
+        total: usize,
+        seconds_left: Option<f64>,
+    },
     /// Another process holds the index; this search uses what is already there.
     Busy { pid: Option<u32> },
 }
@@ -117,19 +125,7 @@ impl ProgressDisplay {
                 }
             }
             IndexEvent::Embedding { done, total, seconds } => {
-                let rate = if *seconds > DisplaySettings::RATE_AFTER_SECONDS {
-                    *done as f64 / seconds
-                } else {
-                    0.0
-                };
-                let left = if rate > 0.0 && done < total {
-                    format!(
-                        "· {rate:.1}/s · ~{} left",
-                        Units::duration((total - done) as f64 / rate)
-                    )
-                } else {
-                    String::new()
-                };
+                let left = Self::time_left(*done, *total, *seconds);
                 self.bar(Animation::Indexing, *total, *done, &left);
                 self.plain(
                     &format!(
@@ -140,10 +136,35 @@ impl ProgressDisplay {
                     done == total,
                 );
             }
-            IndexEvent::Outlining { done, total, .. } => {
-                self.bar(Animation::Outlining, *total, *done, "");
+            IndexEvent::Outlining { done, total, seconds } => {
+                let left = Self::time_left(*done, *total, *seconds);
+                self.bar(Animation::Outlining, *total, *done, &left);
                 self.plain(
                     &format!("Mapping {}/{} functions", Units::count(*done), Units::count(*total)),
+                    done == total,
+                );
+            }
+            IndexEvent::Background {
+                searchable,
+                done,
+                total,
+                seconds_left,
+            } => {
+                let (animation, label) = if *searchable {
+                    (Animation::Outlining, "Mapping")
+                } else {
+                    (Animation::Indexing, "Indexing")
+                };
+                let left = seconds_left
+                    .map(|seconds| format!("· ~{} left", Units::duration(seconds)))
+                    .unwrap_or_default();
+                self.bar(animation, *total, *done, &left);
+                self.plain(
+                    &format!(
+                        "{label} {}/{} functions {left}",
+                        Units::count(*done),
+                        Units::count(*total)
+                    ),
                     done == total,
                 );
             }
@@ -153,6 +174,23 @@ impl ProgressDisplay {
                     "Another s1grep is indexing this project{holder}; searching what is already indexed."
                 )));
             }
+        }
+    }
+
+    /// "· 5.2/s · ~3 min left" once the pace can be measured, else nothing.
+    fn time_left(done: usize, total: usize, seconds: f64) -> String {
+        let rate = if seconds > DisplaySettings::RATE_AFTER_SECONDS {
+            done as f64 / seconds
+        } else {
+            0.0
+        };
+        if rate > 0.0 && done < total {
+            format!(
+                "· {rate:.1}/s · ~{} left",
+                Units::duration((total - done) as f64 / rate)
+            )
+        } else {
+            String::new()
         }
     }
 

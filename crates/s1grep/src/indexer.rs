@@ -167,10 +167,11 @@ impl Indexer<'_> {
         scope: Option<&str>,
         progress: &mut dyn FnMut(IndexEvent),
     ) -> anyhow::Result<usize> {
-        self.embed_for(embedder, pass, scope, None, progress)
+        self.embed_for(embedder, pass, scope, None, progress, &|| false)
     }
 
-    /// Like `embed`, but stops after the batch that crosses `budget`, leaving the rest for later.
+    /// Like `embed`, but stops after the batch that crosses `budget`, or as soon as `cancelled` says so, leaving the
+    /// rest for later.
     pub fn embed_for(
         &mut self,
         embedder: &mut Embedder,
@@ -178,12 +179,13 @@ impl Indexer<'_> {
         scope: Option<&str>,
         budget: Option<Duration>,
         progress: &mut dyn FnMut(IndexEvent),
+        cancelled: &dyn Fn() -> bool,
     ) -> anyhow::Result<usize> {
         let key = pass.key(self.retriever);
         let total = self.store.pending_count(&key, scope)?;
         let started = Instant::now();
         let mut done = 0;
-        while done < total && budget.is_none_or(|budget| started.elapsed() < budget) {
+        while done < total && budget.is_none_or(|budget| started.elapsed() < budget) && !cancelled() {
             let batch = self.store.pending_units_within(&key, scope, pass.batch())?;
             if batch.is_empty() {
                 break;

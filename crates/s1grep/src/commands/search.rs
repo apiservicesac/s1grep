@@ -7,7 +7,7 @@ use clap::Args;
 use crate::backend::{Answered, SearchBackend};
 use crate::models::ModelDirectory;
 use crate::progress::{ProgressDisplay, Units};
-use crate::report::TextReport;
+use crate::report::{CoverageNote, TextReport};
 use crate::service::{FileFilters, SearchRequest, SearchResponse};
 use crate::settings::SearchSettings;
 
@@ -118,36 +118,14 @@ impl SearchArgs {
             "{coverage} · search {:.1} s · total {:.1} s · {source}",
             response.search_seconds, total
         )));
-        // When most of a project cannot be searched yet, a missing answer is likely just not indexed: say so plainly.
-        if response.searchable * 2 < response.functions {
-            let ready = response
-                .indexing
-                .as_ref()
-                .and_then(|indexing| indexing.searchable_seconds_left)
-                .map(|seconds| format!(" It will all be searchable in ~{}.", Units::duration(seconds)))
-                .unwrap_or_default();
-            display.line(&display.warn(&format!(
-                "Only {} % of this project can be searched yet ({} of {} functions); the answer may be in the rest.{ready}",
-                response.searchable * 100 / response.functions.max(1),
-                Units::count(response.searchable),
-                Units::count(response.functions)
-            )));
+        if let Some(warning) = CoverageNote::warning(response) {
+            display.line(&display.warn(&warning));
         }
         if response.is_complete() {
             return;
         }
-        let note = match (&response.indexing, answered) {
-            (Some(indexing), _) => {
-                let percent = response.indexed * 100 / response.functions.max(1);
-                let left = indexing
-                    .seconds_left
-                    .map(|seconds| format!(" · ~{} left", Units::duration(seconds)))
-                    .unwrap_or_default();
-                format!(
-                    "Indexing continues in the background ({percent} %{left}); results improve as it completes. \
-                     `s1grep status` shows it."
-                )
-            }
+        let note = match (CoverageNote::indexing(response), answered) {
+            (Some(indexing), _) => format!("{indexing} `s1grep status` shows it."),
             (None, Answered::Local) => {
                 "Not indexed yet: search without --no-server to index it in the background.".to_string()
             }

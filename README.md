@@ -110,7 +110,7 @@ s1grep "export rows to csv" . --json                     # machine-readable, for
 | `s1grep stop` | Stops the background process now, freeing its memory (the next search starts it again) |
 | `s1grep mcp` | Runs as an MCP server with one tool, `search_code`, for coding agents |
 | `s1grep skill --install` | Installs the Claude Code skill that tells agents when to use s1grep |
-| `s1grep index [PATH]` | Indexes a large repository ahead of the first search |
+| `s1grep index [PATH]` | Indexes a repository ahead of the first search, in the background process, and follows it to the end (Ctrl+C stops following, not the indexing) |
 | `s1grep gc` | Removes indexes of folders that no longer exist and vectors nothing uses (`--dry-run` to preview) |
 
 The first search in a project builds its index, with a progress bar. In a large project it waits at most about 10 s
@@ -141,8 +141,10 @@ claude mcp add s1grep -- s1grep mcp       # Claude Code MCP server
 codex mcp add s1grep -- s1grep mcp        # Codex MCP server
 ```
 
-Other agents take the command `s1grep` with the argument `mcp` over stdio. Agents and the terminal share the same
-background process.
+Other agents take the command `s1grep` with the argument `mcp` over stdio. The MCP server has two tools:
+`search_code` (with `top` and `offset` to page through results, coverage notes while a repository is still being
+indexed, and progress notifications when the call asks for them) and `index_status`. Agents and the terminal share the
+same background process.
 
 ### Speed and memory
 

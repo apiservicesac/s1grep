@@ -9,6 +9,7 @@ pub mod indexer;
 pub mod models;
 pub mod progress;
 pub mod project;
+pub mod protocol;
 pub mod query;
 pub mod report;
 pub mod runtime_library;

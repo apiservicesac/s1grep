@@ -48,10 +48,7 @@ pub struct SearchRequest {
 
 impl SearchRequest {
     pub fn new(query: &str, target: &Path, top: usize, judge_top: usize, filters: FileFilters) -> anyhow::Result<Self> {
-        let target = dunce::canonicalize(target).with_context(|| format!("{} does not exist", target.display()))?;
-        if !target.is_dir() {
-            anyhow::bail!("{} is not a folder", target.display());
-        }
+        let target = crate::project::MissingFolder::resolve(target)?;
         Ok(Self {
             query: query.trim().to_string(),
             target,
@@ -107,6 +104,58 @@ pub struct SearchResponse {
     pub search_seconds: f64,
     pub results: Vec<SearchResult>,
 }
+
+/// How far a project is indexed, for `s1grep index`, `status` and the MCP `index_status` tool.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProjectProgress {
+    pub root: PathBuf,
+    pub functions: usize,
+    /// Functions with a whole-source vector, and with at least an outline vector.
+    pub indexed: usize,
+    pub searchable: usize,
+    /// The background job's progress, while there is one.
+    pub indexing: Option<IndexingProgress>,
+    /// Another process holds the project's lock and indexes it.
+    pub held_elsewhere: bool,
+}
+
+impl ProjectProgress {
+    /// The progress of `project` from its catalog; `indexing` is the background job's, when this process runs one.
+    pub fn read(
+        project: &Project,
+        store: &s1_index::IndexStore,
+        retriever: Retriever,
+        indexing: Option<IndexingProgress>,
+    ) -> anyhow::Result<Self> {
+        let whole = Pass::Whole.key(retriever);
+        let outline = Pass::Outline.key(retriever);
+        let coverage = store.coverage(&whole, None)?;
+        Ok(Self {
+            root: project.root.clone(),
+            functions: coverage.units,
+            indexed: coverage.embedded,
+            searchable: store.searchable_count(&whole, &outline, None)?,
+            held_elsewhere: indexing.is_none() && IndexLock::is_held(&project.folder),
+            indexing,
+        })
+    }
+
+    pub fn is_complete(&self) -> bool {
+        self.indexed >= self.functions
+    }
+}
+
+/// A search given up because its client went away; nothing is sent back.
+#[derive(Debug)]
+pub struct SearchCancelled;
+
+impl std::fmt::Display for SearchCancelled {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("the client went away")
+    }
+}
+
+impl std::error::Error for SearchCancelled {}
 
 impl SearchResponse {
     pub fn is_complete(&self) -> bool {
@@ -187,10 +236,13 @@ impl SearchService {
         })
     }
 
+    /// Searches `request`, bringing the project's index up to date first. `cancelled` is asked between the costly
+    /// steps; once it says yes the search stops with `SearchCancelled`.
     pub fn search(
         &mut self,
         request: &SearchRequest,
         progress: &mut dyn FnMut(IndexEvent),
+        cancelled: &dyn Fn() -> bool,
     ) -> anyhow::Result<SearchResponse> {
         let project = Project::locate(&request.target)?;
         let scope = project.scope.as_deref();
@@ -217,6 +269,9 @@ impl SearchService {
                 retriever: self.retriever,
             };
             let report = indexer.scan(&project.root, &request.filters.walk_options()?, progress)?;
+            if cancelled() {
+                return Err(SearchCancelled.into());
+            }
             let pending = indexer.store.pending_count(&whole, scope)?;
             let embedded = if pending > 0 && pending <= IndexSettings::INDEX_BEFORE_ANSWERING {
                 indexer.embed(self.searcher.embedder_for(Pass::Whole), Pass::Whole, scope, progress)?
@@ -228,6 +283,7 @@ impl SearchService {
                     scope,
                     Some(IndexSettings::OUTLINE_BEFORE_ANSWERING),
                     progress,
+                    cancelled,
                 )?
             } else {
                 0
@@ -251,6 +307,9 @@ impl SearchService {
         } else {
             0
         };
+        if cancelled() {
+            return Err(SearchCancelled.into());
+        }
         let (vectors, lexical, store) = session.vectors(self.retriever)?;
         let searchable = vectors.rows().filter(|row| keep(&row.path)).count();
         let started = Instant::now();
@@ -439,29 +498,54 @@ impl SearchService {
         Ok(())
     }
 
-    /// Brings a whole project up to date, for `s1grep index`.
-    pub fn index(&mut self, target: &Path, progress: &mut dyn FnMut(IndexEvent)) -> anyhow::Result<Project> {
+    /// Reads the project at `target` and hands every missing vector to background indexing, outlines first; for
+    /// `s1grep index`, which then follows `project_progress` until the job is done.
+    pub fn start_indexing(
+        &mut self,
+        target: &Path,
+        progress: &mut dyn FnMut(IndexEvent),
+    ) -> anyhow::Result<ProjectProgress> {
         let project = Project::locate(target)?;
-        let mut store = project.open_store()?;
-        let Ok(index_lock) = IndexLock::acquire(&project.folder)? else {
-            anyhow::bail!(
-                "another s1grep is indexing {} right now; `s1grep status` shows its progress",
-                project.root.display()
-            );
+        project.record_use()?;
+        let has_job = self.jobs.iter().any(|job| job.project.root == project.root);
+        let lock = if has_job {
+            None
+        } else {
+            match IndexLock::acquire(&project.folder)? {
+                Ok(lock) => Some(lock),
+                Err(_) => return self.project_progress(target),
+            }
         };
-        let mut indexer = Indexer {
-            store: &mut store,
+        let session = self.sessions.get(&project)?;
+        let report = Indexer {
+            store: &mut session.store,
             retriever: self.retriever,
+        }
+        .scan(&project.root, &FileFilters::default().walk_options()?, progress)?;
+        if report.changed > 0 || report.removed > 0 {
+            session.mark_changed();
+        }
+        session.apply_scan(&report);
+        let totals = PendingWork {
+            whole: session.store.pending_count(&Pass::Whole.key(self.retriever), None)?,
+            outline: session.store.pending_count(&Pass::Outline.key(self.retriever), None)?,
         };
-        indexer.scan(&project.root, &FileFilters::default().walk_options()?, progress)?;
-        indexer.embed(
-            self.searcher.embedder_for(Pass::Whole),
-            Pass::Whole,
-            project.scope.as_deref(),
-            progress,
-        )?;
-        drop(index_lock);
-        Ok(project)
+        if totals.whole > 0 {
+            self.schedule(&project, lock, totals);
+        }
+        self.project_progress(target)
+    }
+
+    /// How far the project at `target` is indexed, without reading its files.
+    pub fn project_progress(&mut self, target: &Path) -> anyhow::Result<ProjectProgress> {
+        let project = Project::locate(target)?;
+        let indexing = self
+            .jobs
+            .iter()
+            .find(|job| job.project.root == project.root)
+            .map(IndexingJob::progress);
+        let session = self.sessions.get(&project)?;
+        ProjectProgress::read(&project, &session.store, self.retriever, indexing)
     }
 
     pub fn retriever(&self) -> Retriever {

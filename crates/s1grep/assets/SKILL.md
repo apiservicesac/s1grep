@@ -33,4 +33,6 @@ what is ready and how far each project is indexed.
 ## Reading the output
 
 Read the returned functions before searching again; use their file and line references to open more context. A low
-judge probability on every result means the behaviour is probably not in that folder.
+judge probability on every result means the behaviour is probably not in that folder. When the output says that only
+part of the repository can be searched yet, the answer may be in the rest: `s1grep status` (or the MCP tool
+`index_status`) shows when indexing finishes, and `s1grep index <path>` waits for it.

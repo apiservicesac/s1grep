@@ -1,11 +1,47 @@
 use std::fs::{File, OpenOptions, TryLockError};
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, bail};
+use anyhow::Context;
 use s1_index::{IndexError, IndexStore};
 
 use crate::cache::{CacheDirectory, ProjectFolder};
 use crate::settings::CacheSettings;
+
+/// A searched path that does not exist or is not a folder.
+#[derive(Debug)]
+pub struct MissingFolder {
+    pub path: PathBuf,
+    pub reason: &'static str,
+}
+
+impl MissingFolder {
+    /// The folder at `path`, canonical, or why there is none.
+    pub fn resolve(path: &Path) -> anyhow::Result<PathBuf> {
+        let Ok(folder) = dunce::canonicalize(path) else {
+            return Err(Self {
+                path: path.to_path_buf(),
+                reason: "does not exist",
+            }
+            .into());
+        };
+        if !folder.is_dir() {
+            return Err(Self {
+                path: folder,
+                reason: "is not a folder",
+            }
+            .into());
+        }
+        Ok(folder)
+    }
+}
+
+impl std::fmt::Display for MissingFolder {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "{} {}", self.path.display(), self.reason)
+    }
+}
+
+impl std::error::Error for MissingFolder {}
 
 /// The project a search belongs to: the folder whose index it uses, and the part of it the search covers.
 ///
@@ -23,10 +59,7 @@ pub struct Project {
 
 impl Project {
     pub fn locate(path: &Path) -> anyhow::Result<Self> {
-        let target = dunce::canonicalize(path).with_context(|| format!("{} does not exist", path.display()))?;
-        if !target.is_dir() {
-            bail!("{} is not a folder", target.display());
-        }
+        let target = MissingFolder::resolve(path)?;
         let repository = target.ancestors().find(|ancestor| ancestor.join(".git").exists());
         let mut indexed = Vec::new();
         for ancestor in target.ancestors() {
@@ -56,7 +89,7 @@ impl Project {
 
     /// The project rooted exactly at `root`, without looking for an enclosing index or repository.
     pub fn at_root(root: &Path) -> anyhow::Result<Self> {
-        let root = dunce::canonicalize(root).with_context(|| format!("{} does not exist", root.display()))?;
+        let root = MissingFolder::resolve(root)?;
         let folder = ProjectFolder::for_root(&root)?;
         Ok(Self {
             root,

@@ -1,7 +1,7 @@
 # 0009. A versioned IPC protocol with typed errors and cancellation
 
 - Status: Accepted (2026-10-01)
-- Implementation: Stage 5 (atomic server info and lock order in stage 1).
+- Implementation: done (0.5.0); described in docs/protocol.md.
 
 ## Context
 

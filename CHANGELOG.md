@@ -2,6 +2,25 @@
 
 All notable changes to `s1grep` are documented here. Versions follow [Semantic Versioning](https://semver.org).
 
+## [Unreleased]
+
+### Added
+- The background process answers on two threads: pings, `status` and `stop` answer at once even while it searches or
+  indexes (0.02 s instead of waiting for the work in hand), and a worker runs searches before background indexing.
+- A search whose client goes away (Ctrl+C, a closed terminal, an agent that gave up) stops between its costly steps,
+  so the next search does not wait for it.
+- `s1grep index` hands the project to the background process and follows its progress, with the time left; Ctrl+C
+  stops following, not the indexing.
+- The MCP server has an `index_status` tool, `offset` to page through `search_code` results, coverage notes in its
+  answers, and progress notifications while a repository is read and made searchable.
+- A versioned protocol with typed errors (`docs/protocol.md`): a missing folder, missing models or an internal error
+  are told apart, and a client meeting an older process restarts it.
+- The background log is moved aside once it passes 5 MB.
+
+### Decided
+- No file watcher: finding changed files costs about 110 ms per search in a 7,951-file repository, against 1.5–2 s for
+  the judge (ADR-0014).
+
 ## [0.4.0] — 2026-10-01
 
 ### Added

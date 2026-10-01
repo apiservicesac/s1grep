@@ -334,6 +334,22 @@ impl IndexStore {
         Ok((catalog, vectors))
     }
 
+    /// Units under `scope` that can be searched: with a vector in `space` or in `outline_space`.
+    pub fn searchable_count(&self, space: &str, outline_space: &str, scope: Option<&str>) -> Result<usize, IndexError> {
+        let count: i64 = self.connection.query_row(
+            &format!(
+                "SELECT COUNT(*) FROM units WHERE (?3 IS NULL OR {})
+                 AND (EXISTS (SELECT 1 FROM shared.vectors AS whole WHERE whole.model = ?1 AND whole.content = units.content)
+                   OR EXISTS (SELECT 1 FROM shared.vectors AS outline
+                              WHERE outline.model = ?2 AND outline.content = units.content))",
+                ScopeFilter::matches(3)
+            ),
+            params![space, outline_space, scope],
+            |row| row.get(0),
+        )?;
+        Ok(count as usize)
+    }
+
     pub fn unit_count(&self) -> Result<usize, IndexError> {
         let count: i64 = self
             .connection

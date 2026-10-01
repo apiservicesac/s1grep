@@ -43,6 +43,6 @@ impl SearchBackend {
             self.local = Some(SearchService::load(&self.models, true, self.threads)?);
         }
         let service = self.local.as_mut().expect("loaded above");
-        Ok((service.search(request, progress)?, Answered::Local))
+        Ok((service.search(request, progress, &|| false)?, Answered::Local))
     }
 }

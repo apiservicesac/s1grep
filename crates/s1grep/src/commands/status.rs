@@ -20,7 +20,8 @@ impl StatusCommand {
     /// One screen with the server, the models and every indexed project.
     pub fn run(self) -> anyhow::Result<()> {
         let display = ProgressDisplay::new();
-        let busy = ServerClient::any().is_none() && ServerClient::recorded().is_some();
+        // The process answers at once even while it searches or indexes, so one that does not answer is stuck.
+        let unresponsive = ServerClient::any().is_none() && ServerClient::recorded().is_some();
         let server = match ServerClient::recorded() {
             Some(client) => {
                 let lifetime = match client.info.idle_minutes {
@@ -29,11 +30,8 @@ impl StatusCommand {
                 };
                 format!(
                     "{}  {}",
-                    if busy {
-                        display.warn(&format!(
-                            "● busy indexing (pid {}), searches wait for it",
-                            client.info.pid
-                        ))
+                    if unresponsive {
+                        display.warn(&format!("● not answering (pid {})", client.info.pid))
                     } else {
                         display.good(&format!("● running (pid {}), models in memory", client.info.pid))
                     },

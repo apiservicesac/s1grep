@@ -43,7 +43,8 @@ Each crate keeps its tunable values in its own `settings.rs`.
 s1grep "query" PATH
   └─ SearchBackend ── ensure a background process (spawn `serve --background` if none) ──┐
                                                                                         │ TCP 127.0.0.1, token,
-  SearchServer (one request at a time) ◄─────────────────────────────────────────────────┘ JSON lines, progress stream
+  SearchServer: a connection thread answers pings and stops at once; ◄───────────────────┘ JSON lines, progress stream
+  a worker runs searches, index requests and background steps (docs/protocol.md)
   └─ SearchService::search
        ├─ Project::locate      root = highest indexed folder within the repository, else the repository; outside
        │                       a repository the nearest indexed folder, else PATH; scope = subfolder
@@ -112,7 +113,7 @@ s1-engine    TextEmbedder · DecisionModel
 | 2 | Resident project sessions, in-memory vector index, change detection without full rescans | 0.2.5 |
 | 3 | Faster indexing and searches: a smaller model for outlines, the judge stopping early | 0.3.0 |
 | 4 | More languages through tree-sitter queries; BM25 with tantivy and rank fusion | 0.2.6, 0.4.0 |
-| 5 | Daemon concurrency, cancellation, typed errors, richer MCP, optional file watcher | 0.5.0 |
+| 5 | Daemon threads, cancellation, typed errors, `s1grep index` through the daemon, MCP status and progress; no file watcher (ADR-0014) | 0.5.0 |
 | 6 | s1-code v4 trained on several languages | model |
 
 Every stage leaves the tool working and ends with its own gate (see [`docs/quality.md`](docs/quality.md)).

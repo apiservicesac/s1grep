@@ -13,8 +13,9 @@ supersedes it. [0000](0000-engine-measurements.md) collects the engine measureme
 | [0006](0006-languages-as-data.md) | Languages are added as data: a grammar, a query and a registry entry | done (0.2.6): eight languages beside Python. |
 | [0007](0007-hybrid-retrieval.md) | Hybrid retrieval: vectors and BM25, fused, then the judge | done (0.4.0). |
 | [0008](0008-progressive-indexing.md) | Progressive indexing with priorities and reported coverage | outline pass in 0.2.4; bounded first wait, yielding to searches and resuming on start in 0.2.5. |
-| [0009](0009-ipc-protocol.md) | A versioned IPC protocol with typed errors and cancellation | Stage 5 (atomic server info and lock order in stage 1). |
+| [0009](0009-ipc-protocol.md) | A versioned IPC protocol with typed errors and cancellation | done (0.5.0); described in docs/protocol.md. |
 | [0010](0010-lab-outside-the-product.md) | Development tools live in s1-lab, outside the shipped binary | Implemented in stage 0. |
 | [0011](0011-quality-gates.md) | Quality gates for every release | Stage 0 (CI); exam and benchmarks on every release. |
 | [0012](0012-storage-layout.md) | Storage: SQLite, one index per project, in its own folder | done in stage 1 (0.2.5). |
 | [0013](0013-outline-model.md) | A smaller model embeds outlines | done (0.3.0). |
+| [0014](0014-no-file-watcher.md) | No file watcher | decided in stage 5 (0.5.0). |

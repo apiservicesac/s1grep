@@ -102,6 +102,17 @@ impl ServerSettings {
     pub const INDEX_RETRY_PAUSE: Duration = Duration::from_secs(5);
     /// Background indexing pauses this long after each connection, so the search behind a ping goes first.
     pub const YIELD_AFTER_REQUEST: Duration = Duration::from_millis(1500);
+    /// Version of the protocol between clients and the background process (docs/protocol.md); a client meeting
+    /// another version restarts the process.
+    pub const PROTOCOL_VERSION: u32 = 2;
+    /// How often the connection thread looks for a new connection.
+    pub const ACCEPT_INTERVAL: Duration = Duration::from_millis(20);
+    /// Longest wait for any line of a reply (progress lines reset it); a process silent for longer is taken as hung.
+    pub const REPLY_TIMEOUT: Duration = Duration::from_secs(300);
+    /// A log larger than this is moved aside when a new process starts.
+    pub const LOG_MAXIMUM_BYTES: u64 = 5_000_000;
+    /// How often `s1grep index` asks the background process how far it got.
+    pub const FOLLOW_INTERVAL: Duration = Duration::from_millis(500);
 }
 
 /// Terminal output.
@@ -112,7 +123,7 @@ impl DisplaySettings {
     pub const SPINNER_TEMPLATE: &'static str = "{spinner:.cyan} {msg} {elapsed:.dim}";
     pub const READING_TEMPLATE: &'static str = "{spinner:.cyan} Reading files {pos}/{len}";
     pub const OUTLINING_TEMPLATE: &'static str =
-        "{spinner:.cyan} Mapping  {bar:28.cyan/dim} {human_pos}/{human_len} functions {eta:.dim}";
+        "{spinner:.cyan} Mapping  {bar:28.cyan/dim} {human_pos}/{human_len} functions {msg:.dim}";
     pub const INDEXING_TEMPLATE: &'static str =
         "{spinner:.cyan} Indexing {bar:28.cyan/dim} {human_pos}/{human_len} functions {msg:.dim}";
     pub const DOWNLOAD_TEMPLATE: &'static str =
@@ -302,7 +313,8 @@ pub struct McpSettings;
 
 impl McpSettings {
     pub const PROTOCOL_VERSIONS: [&'static str; 3] = ["2025-06-18", "2025-03-26", "2024-11-05"];
-    pub const TOOL: &'static str = "search_code";
+    pub const SEARCH_TOOL: &'static str = "search_code";
+    pub const STATUS_TOOL: &'static str = "index_status";
     pub const PREVIEW_LINES: usize = 40;
     pub const INSTRUCTIONS: &'static str = "s1grep finds functions by what they do, from a description in English or \
         Spanish, and returns their file, lines and code. Use it when you know the behaviour but not where it lives; \
