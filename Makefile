@@ -122,7 +122,7 @@ bump: ## Release a specific version: make bump VERSION=1.2.0
 	    git status --short -- . ':!Cargo.toml' ':!Cargo.lock' ; \
 	    echo "$(RED)Commit and push them, then release.$(NC)" ; exit 1 ; }
 	sed -i '/^\[workspace.package\]/,/^\[/s/^version = .*/version = "$(VERSION)"/' Cargo.toml
-	for crate in s1-engine s1-index s1grep; do \
+	for crate in s1-engine s1-index s1grep s1-lab; do \
 	    sed -i "/^name = \"$$crate\"$$/{n;s/^version = .*/version = \"$(VERSION)\"/}" Cargo.lock ; \
 	done
 	git add Cargo.toml Cargo.lock

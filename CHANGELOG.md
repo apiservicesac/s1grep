@@ -2,7 +2,7 @@
 
 All notable changes to `s1grep` are documented here. Versions follow [Semantic Versioning](https://semver.org).
 
-## [Unreleased]
+## [0.2.5] — 2026-10-01
 
 ### Added
 - `s1grep gc` removes the indexes of folders that no longer exist and the vectors no index uses (`--dry-run` shows
