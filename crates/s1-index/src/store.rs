@@ -14,6 +14,14 @@ pub struct StoredUnit {
     pub unit: CodeUnit,
 }
 
+/// A unit with the vector a search compares, and whether that vector comes from its whole source or only its outline.
+#[derive(Debug, Clone)]
+pub struct SearchableUnit {
+    pub stored: StoredUnit,
+    pub vector: Vec<f32>,
+    pub whole: bool,
+}
+
 /// What the index knows about a file, to skip reading files that did not change.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FileState {
@@ -48,6 +56,7 @@ pub struct IndexStore {
 impl IndexStore {
     const PROJECT_SCHEMA: &'static str = "
         PRAGMA journal_mode = WAL;
+        PRAGMA synchronous = NORMAL;
         CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS files (
             path TEXT PRIMARY KEY, hash TEXT NOT NULL, size INTEGER NOT NULL, modified INTEGER NOT NULL);
@@ -92,6 +101,17 @@ impl IndexStore {
         Ok(())
     }
 
+    /// Groups the writes of many files into one transaction: one write to disk instead of one per file.
+    pub fn begin_batch(&self) -> Result<(), IndexError> {
+        self.connection.execute_batch("BEGIN IMMEDIATE")?;
+        Ok(())
+    }
+
+    pub fn commit_batch(&self) -> Result<(), IndexError> {
+        self.connection.execute_batch("COMMIT")?;
+        Ok(())
+    }
+
     pub fn file_state(&self, path: &str) -> Result<Option<FileState>, IndexError> {
         Ok(self
             .connection
@@ -107,6 +127,24 @@ impl IndexStore {
                 },
             )
             .optional()?)
+    }
+
+    /// What the index knows about every file, in one query (looking files up one by one is slow on large projects).
+    pub fn file_states(&self) -> Result<std::collections::HashMap<String, FileState>, IndexError> {
+        let mut statement = self
+            .connection
+            .prepare("SELECT path, hash, size, modified FROM files")?;
+        let rows = statement.query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                FileState {
+                    hash: row.get(1)?,
+                    size: row.get::<_, i64>(2)? as u64,
+                    modified: row.get(3)?,
+                },
+            ))
+        })?;
+        Ok(rows.collect::<Result<_, _>>()?)
     }
 
     pub fn indexed_paths(&self) -> Result<Vec<String>, IndexError> {
@@ -128,7 +166,7 @@ impl IndexStore {
 
     /// Replaces everything known about one file with its new units.
     pub fn replace_file(&mut self, path: &str, state: &FileState, units: &[CodeUnit]) -> Result<(), IndexError> {
-        let transaction = self.connection.transaction()?;
+        let transaction = self.connection.savepoint()?;
         transaction.execute("DELETE FROM units WHERE path = ?1", [path])?;
         transaction.execute(
             "INSERT OR REPLACE INTO files (path, hash, size, modified) VALUES (?1, ?2, ?3, ?4)",
@@ -152,7 +190,7 @@ impl IndexStore {
     }
 
     pub fn remove_file(&mut self, path: &str) -> Result<(), IndexError> {
-        let transaction = self.connection.transaction()?;
+        let transaction = self.connection.savepoint()?;
         transaction.execute("DELETE FROM units WHERE path = ?1", [path])?;
         transaction.execute("DELETE FROM files WHERE path = ?1", [path])?;
         transaction.commit()?;
@@ -210,11 +248,34 @@ impl IndexStore {
              ORDER BY units.id",
         )?;
         let rows = statement.query_map(params![model, scope], |row| {
-            let bytes: Vec<u8> = row.get(7)?;
-            let vector = bytes
-                .chunks_exact(4)
-                .map(|chunk| f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]));
-            Ok((Self::stored(row)?, vector.collect()))
+            Ok((Self::stored(row)?, Self::vector(&row.get::<_, Vec<u8>>(7)?)))
+        })?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
+    /// Units under `scope` with their best vector: the whole-source one from `model`, else the outline one from
+    /// `outline_model`. Units with neither are left out.
+    pub fn searchable_units(
+        &self,
+        model: &str,
+        outline_model: &str,
+        scope: Option<&str>,
+    ) -> Result<Vec<SearchableUnit>, IndexError> {
+        let mut statement = self.connection.prepare(
+            "SELECT units.id, path, name, start_line, end_line, source, units.content,
+                    COALESCE(whole.vector, outline.vector), whole.vector IS NOT NULL FROM units
+             LEFT JOIN shared.vectors AS whole ON whole.content = units.content AND whole.model = ?1
+             LEFT JOIN shared.vectors AS outline ON outline.content = units.content AND outline.model = ?2
+             WHERE (whole.vector IS NOT NULL OR outline.vector IS NOT NULL)
+             AND (?3 IS NULL OR path = ?3 OR substr(path, 1, length(?3) + 1) = ?3 || '/')
+             ORDER BY units.id",
+        )?;
+        let rows = statement.query_map(params![model, outline_model, scope], |row| {
+            Ok(SearchableUnit {
+                stored: Self::stored(row)?,
+                vector: Self::vector(&row.get::<_, Vec<u8>>(7)?),
+                whole: row.get(8)?,
+            })
         })?;
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
     }
@@ -247,6 +308,13 @@ impl IndexStore {
         Ok(self
             .connection
             .query_row("SELECT COUNT(*) FROM files", [], |row| row.get::<_, i64>(0))? as usize)
+    }
+
+    fn vector(bytes: &[u8]) -> Vec<f32> {
+        bytes
+            .chunks_exact(4)
+            .map(|chunk| f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
+            .collect()
     }
 
     fn stored(row: &rusqlite::Row) -> rusqlite::Result<StoredUnit> {

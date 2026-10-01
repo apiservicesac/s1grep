@@ -3,11 +3,49 @@ use std::time::{Instant, UNIX_EPOCH};
 
 use anyhow::Context;
 use s1_engine::Embedder;
-use s1_index::{FileState, IndexStore, PythonExtractor, SourceWalker, WalkOptions, content_hash};
+use s1_index::{CodeUnit, FileState, IndexStore, PythonExtractor, SourceWalker, WalkOptions, content_hash};
 
 use crate::models::Retriever;
 use crate::progress::IndexEvent;
 use crate::settings::IndexSettings;
+
+/// The two vectors a function gets: first one of its outline (path, name, signature), cheap enough to cover a large
+/// project in about a minute, then one of its whole source, computed in the background.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Pass {
+    Outline,
+    Whole,
+}
+
+impl Pass {
+    pub fn key(self, retriever: Retriever) -> &'static str {
+        match self {
+            Self::Outline => retriever.outline_key(),
+            Self::Whole => retriever.key(),
+        }
+    }
+
+    pub fn text(self, unit: &CodeUnit) -> String {
+        match self {
+            Self::Outline => unit.outline_text(),
+            Self::Whole => unit.document_text(),
+        }
+    }
+
+    pub fn batch(self) -> usize {
+        match self {
+            Self::Outline => IndexSettings::OUTLINE_BATCH,
+            Self::Whole => IndexSettings::EMBED_BATCH,
+        }
+    }
+
+    fn event(self, done: usize, total: usize, seconds: f64) -> IndexEvent {
+        match self {
+            Self::Outline => IndexEvent::Outlining { done, total, seconds },
+            Self::Whole => IndexEvent::Embedding { done, total, seconds },
+        }
+    }
+}
 
 /// What a scan changed.
 #[derive(Debug, Default, Clone, Copy)]
@@ -45,7 +83,13 @@ impl Indexer<'_> {
             }
         }
         let mut extractor = PythonExtractor::new()?;
+        let mut known_files = self.store.file_states()?;
+        self.store.begin_batch()?;
         for (index, file) in files.iter().enumerate() {
+            if index > 0 && index % IndexSettings::SCAN_COMMIT_EVERY == 0 {
+                self.store.commit_batch()?;
+                self.store.begin_batch()?;
+            }
             if index % IndexSettings::SCAN_REPORT_EVERY == 0 {
                 progress(IndexEvent::Scanning {
                     done: index,
@@ -59,7 +103,7 @@ impl Indexer<'_> {
                 .ok()
                 .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
                 .map_or(0, |time| time.as_nanos() as i64);
-            let known = self.store.file_state(&file.relative)?;
+            let known = known_files.remove(&file.relative);
             if known
                 .as_ref()
                 .is_some_and(|state| state.size == metadata.len() && state.modified == modified)
@@ -81,6 +125,7 @@ impl Indexer<'_> {
             self.store.replace_file(&file.relative, &state, &units)?;
             report.changed += 1;
         }
+        self.store.commit_batch()?;
         progress(IndexEvent::Scanned {
             files: report.files,
             changed: report.changed,
@@ -90,20 +135,20 @@ impl Indexer<'_> {
         Ok(report)
     }
 
-    /// Embeds the missing vectors under `scope` (the whole project when `None`). Returns how many were computed.
+    /// Computes the missing vectors of `pass` under `scope` (the whole project when `None`). Returns how many.
     pub fn embed(
         &mut self,
         embedder: &mut Embedder,
+        pass: Pass,
         scope: Option<&str>,
         progress: &mut dyn FnMut(IndexEvent),
     ) -> anyhow::Result<usize> {
-        let total = self.store.pending_count(self.retriever.key(), scope)?;
+        let key = pass.key(self.retriever);
+        let total = self.store.pending_count(key, scope)?;
         let started = Instant::now();
         let mut done = 0;
         while done < total {
-            let batch = self
-                .store
-                .pending_units(self.retriever.key(), scope, IndexSettings::EMBED_BATCH)?;
+            let batch = self.store.pending_units(key, scope, pass.batch())?;
             let batch: Vec<_> = match scope {
                 Some(scope) => batch
                     .into_iter()
@@ -114,17 +159,13 @@ impl Indexer<'_> {
             if batch.is_empty() {
                 break;
             }
-            let texts: Vec<String> = batch.iter().map(|stored| stored.unit.document_text()).collect();
+            let texts: Vec<String> = batch.iter().map(|stored| pass.text(&stored.unit)).collect();
             let vectors = embedder.embed_documents(&texts)?;
             let rows: Vec<(String, Vec<f32>)> =
                 batch.iter().map(|stored| stored.content.clone()).zip(vectors).collect();
-            self.store.store_vectors(self.retriever.key(), &rows)?;
+            self.store.store_vectors(key, &rows)?;
             done = (done + rows.len()).min(total);
-            progress(IndexEvent::Embedding {
-                done,
-                total,
-                seconds: started.elapsed().as_secs_f64(),
-            });
+            progress(pass.event(done, total, started.elapsed().as_secs_f64()));
         }
         Ok(done)
     }

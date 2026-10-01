@@ -37,6 +37,20 @@ impl IndexSettings {
     pub const MAXIMUM_FILE_BYTES: u64 = 1_000_000;
     /// Functions embedded per step: small enough to report progress often.
     pub const EMBED_BATCH: usize = 32;
+    /// Outlines embedded per step; they are short, so more fit in the same time.
+    pub const OUTLINE_BATCH: usize = 128;
+    /// A search waits for whole-source vectors only when this few functions miss one (seconds of work); a larger
+    /// project gets outline vectors first, is searched with them, and gets the rest in the background.
+    pub const INDEX_BEFORE_ANSWERING: usize = 64;
+    /// Functions the background process embeds between two looks for new searches (a few seconds of work).
+    pub const BACKGROUND_BATCH: usize = 8;
+    /// Functions the background process fetches from the index at a time, so it does not query it for every batch.
+    pub const BACKGROUND_QUEUE: usize = 512;
+    pub const BACKGROUND_OUTLINE_QUEUE: usize = 2048;
+    /// Functions to embed in the background before the time left is estimated; earlier guesses swing wildly.
+    pub const ESTIMATE_AFTER: usize = 64;
+    /// Files written to the index per transaction while reading a project.
+    pub const SCAN_COMMIT_EVERY: usize = 500;
     /// Files read between two progress reports.
     pub const SCAN_REPORT_EVERY: usize = 500;
 }
@@ -49,7 +63,11 @@ impl ServerSettings {
     pub const IDLE: Duration = Duration::from_secs(30 * 60);
     /// How long a search waits for a freshly started server to load the models.
     pub const START_TIMEOUT: Duration = Duration::from_secs(180);
-    pub const STOP_TIMEOUT: Duration = Duration::from_secs(15);
+    /// A process that does not answer a ping within this time is busy (or hung) and is not used for searches.
+    pub const PING_TIMEOUT: Duration = Duration::from_secs(4);
+    /// After asking it to stop, how long to wait before terminating it, and how long a terminated one may take.
+    pub const STOP_TIMEOUT: Duration = Duration::from_secs(5);
+    pub const KILL_TIMEOUT: Duration = Duration::from_secs(5);
     pub const CONNECT_TIMEOUT: Duration = Duration::from_millis(300);
     /// Time a client has to send its request once connected.
     pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
@@ -66,6 +84,8 @@ impl DisplaySettings {
     /// indicatif layouts: a spinner for waits of unknown length, bars for reading files, indexing and downloading.
     pub const SPINNER_TEMPLATE: &'static str = "{spinner:.cyan} {msg} {elapsed:.dim}";
     pub const READING_TEMPLATE: &'static str = "{spinner:.cyan} Reading files {pos}/{len}";
+    pub const OUTLINING_TEMPLATE: &'static str =
+        "{spinner:.cyan} Mapping  {bar:28.cyan/dim} {human_pos}/{human_len} functions {eta:.dim}";
     pub const INDEXING_TEMPLATE: &'static str =
         "{spinner:.cyan} Indexing {bar:28.cyan/dim} {human_pos}/{human_len} functions {msg:.dim}";
     pub const DOWNLOAD_TEMPLATE: &'static str =

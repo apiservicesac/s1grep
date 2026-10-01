@@ -2,6 +2,24 @@
 
 All notable changes to `s1grep` are documented here. Versions follow [Semantic Versioning](https://semver.org).
 
+## [0.2.4] — 2026-10-01
+
+### Added
+- Large projects are indexed in two passes. First every function gets a vector of its outline (path, name and
+  signature), about a tenth of the work, so the whole project can be searched after a short wait, in any language the
+  retriever knows. Then the background process computes the vectors of the whole source between searches, and results
+  improve as it goes. Results found through an outline are marked `by outline`.
+
+### Changed
+- Reading a project writes to the index in batches of 500 files and loads every file's state in one query: reading
+  about 6,000 files after the first time takes a few seconds instead of half a minute.
+
+### Fixed
+- `s1grep stop`, `status` and searches no longer hang while the background process is busy: it is pinged with a timeout,
+  and `stop` ends it by force when it does not answer.
+- The time left for background indexing is measured from its first batch, once enough functions are done, instead of
+  guessing hours from the first seconds.
+
 ## [0.2.3] — 2026-10-01
 
 ### Changed

@@ -101,20 +101,45 @@ impl SearchArgs {
         let coverage = if response.is_complete() {
             format!("{} functions", Units::count(response.functions))
         } else {
-            let percent = response.indexed * 100 / response.functions.max(1);
-            display.warn(&format!(
-                "searched {} of {} functions ({percent} %)",
-                Units::count(response.indexed),
-                Units::count(response.functions)
-            ))
+            let mut coverage = format!(
+                "{} functions · {} read in full, the rest by outline",
+                Units::count(response.functions),
+                Units::count(response.indexed)
+            );
+            if response.searchable < response.functions {
+                coverage.push_str(&format!(
+                    " · {} not searchable yet",
+                    Units::count(response.functions - response.searchable)
+                ));
+            }
+            coverage
         };
         display.line(&display.dim(&format!(
             "{coverage} · search {:.1} s · total {:.1} s · {source}",
             response.search_seconds, total
         )));
-        if !response.is_complete() {
-            display
-                .line(&display.dim("The rest is being indexed by another s1grep; `s1grep status` shows its progress."));
+        if response.is_complete() {
+            return;
         }
+        let note = match (&response.indexing, answered) {
+            (Some(indexing), _) => {
+                let percent = response.indexed * 100 / response.functions.max(1);
+                let left = indexing
+                    .seconds_left
+                    .map(|seconds| format!(" · ~{} left", Units::duration(seconds)))
+                    .unwrap_or_default();
+                format!(
+                    "Indexing continues in the background ({percent} %{left}); results improve as it completes. \
+                     `s1grep status` shows it."
+                )
+            }
+            (None, Answered::Local) => {
+                "Not indexed yet: search without --no-server to index it in the background.".to_string()
+            }
+            (None, Answered::Server) => {
+                "Another s1grep is indexing this project; `s1grep status` shows its progress.".to_string()
+            }
+        };
+        display.line(&display.accent(&note));
     }
 }

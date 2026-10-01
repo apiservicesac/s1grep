@@ -12,7 +12,7 @@ pub use error::IndexError;
 pub use extractor::PythonExtractor;
 pub use ranking::{FusionWeights, RankFusion, VectorRanking};
 pub use settings::IndexLimits;
-pub use store::{Coverage, FileState, IndexStore, StoredUnit};
+pub use store::{Coverage, FileState, IndexStore, SearchableUnit, StoredUnit};
 pub use unit::CodeUnit;
 pub use walker::{SourceFile, SourceWalker, WalkOptions};
 

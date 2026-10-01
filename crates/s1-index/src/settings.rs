@@ -10,6 +10,10 @@ impl IndexLimits {
     pub const JUDGE_SOURCE_CHARACTERS: usize = 1500;
     /// Shorter definitions (one-line getters, `pass` stubs) are not worth a search result.
     pub const MINIMUM_LINES: usize = 3;
+    /// The outline of a unit, embedded first so a large project is searchable in a minute: its first lines (the
+    /// signature and the start of the docstring), at most this many characters.
+    pub const OUTLINE_LINES: usize = 2;
+    pub const OUTLINE_CHARACTERS: usize = 160;
     /// Hex characters kept from the blake3 hash that identifies a unit's content.
     pub const CONTENT_KEY_LENGTH: usize = 32;
     /// How long a write waits for another process holding the index database.

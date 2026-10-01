@@ -23,6 +23,8 @@ pub enum IndexEvent {
         functions: usize,
         seconds: f64,
     },
+    /// Computing the quick outline vectors, so that the whole project can be searched.
+    Outlining { done: usize, total: usize, seconds: f64 },
     /// Computing vectors for the functions that have none yet.
     Embedding { done: usize, total: usize, seconds: f64 },
     /// Another process holds the index; this search uses what is already there.
@@ -59,6 +61,7 @@ impl Units {
 enum Animation {
     Spinner,
     Reading,
+    Outlining,
     Indexing,
 }
 
@@ -124,6 +127,13 @@ impl ProgressDisplay {
                     done == total,
                 );
             }
+            IndexEvent::Outlining { done, total, .. } => {
+                self.bar(Animation::Outlining, *total, *done, "");
+                self.plain(
+                    &format!("Mapping {}/{} functions", Units::count(*done), Units::count(*total)),
+                    done == total,
+                );
+            }
             IndexEvent::Busy { pid } => {
                 let holder = pid.map(|pid| format!(" (process {pid})")).unwrap_or_default();
                 self.line(&self.warn(&format!(
@@ -181,10 +191,10 @@ impl ProgressDisplay {
         }
         if !matches!(&self.current, Some((current, _)) if *current == animation) {
             self.clear();
-            let template = if animation == Animation::Reading {
-                DisplaySettings::READING_TEMPLATE
-            } else {
-                DisplaySettings::INDEXING_TEMPLATE
+            let template = match animation {
+                Animation::Reading => DisplaySettings::READING_TEMPLATE,
+                Animation::Outlining => DisplaySettings::OUTLINING_TEMPLATE,
+                Animation::Indexing | Animation::Spinner => DisplaySettings::INDEXING_TEMPLATE,
             };
             let bar = ProgressBar::new(length as u64);
             bar.set_style(

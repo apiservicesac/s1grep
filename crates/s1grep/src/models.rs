@@ -29,6 +29,14 @@ impl Retriever {
         }
     }
 
+    /// Name stored next to the vectors of function outlines, the quick first pass over a large project.
+    pub fn outline_key(self) -> &'static str {
+        match self {
+            Self::Granite => "granite-outline",
+            Self::Qwen3 => "qwen3-outline",
+        }
+    }
+
     /// Candidates the judge reads by default.
     pub fn default_judged(self) -> usize {
         crate::settings::SearchSettings::JUDGED

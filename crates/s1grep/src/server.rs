@@ -148,6 +148,14 @@ impl SearchServer {
                     last_activity = Instant::now();
                 }
                 Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                    if self.service.has_indexing() {
+                        // Background indexing counts as activity: the process stays until every project is indexed.
+                        if let Err(error) = self.service.index_step() {
+                            eprintln!("s1grep server: indexing: {error:#}");
+                        }
+                        last_activity = Instant::now();
+                        continue;
+                    }
                     if let Some(idle) = self.idle
                         && last_activity.elapsed() >= idle
                     {
@@ -245,18 +253,26 @@ pub struct ServerClient {
 }
 
 impl ServerClient {
-    /// The running server of this version, if there is one.
+    /// The running server of this version, if there is one and it answers.
     pub fn connect() -> Option<Self> {
         Self::any().filter(|client| client.info.version == env!("CARGO_PKG_VERSION"))
     }
 
-    /// The running server of any version, if there is one.
+    /// The running server of any version, if there is one and it answers within the ping timeout.
     pub fn any() -> Option<Self> {
         let client = Self {
             info: ServerInfo::read()?,
         };
-        client.exchange(None, false, &mut |_| {}).ok()?;
+        client
+            .exchange(None, false, &mut |_| {}, Some(ServerSettings::PING_TIMEOUT))
+            .ok()?;
         Some(client)
+    }
+
+    /// The server recorded in the cache, whether it answers or not, as long as it still holds the server lock.
+    pub fn recorded() -> Option<Self> {
+        let info = ServerInfo::read()?;
+        (SearchServer::lock().ok()?.is_none()).then_some(Self { info })
     }
 
     pub fn search(
@@ -264,31 +280,69 @@ impl ServerClient {
         request: &SearchRequest,
         progress: &mut dyn FnMut(IndexEvent),
     ) -> anyhow::Result<SearchResponse> {
-        self.exchange(Some(request.clone()), false, progress)?
+        self.exchange(Some(request.clone()), false, progress, None)?
             .context("the server sent no results")
     }
 
-    /// Asks the server to stop and waits until it has.
+    /// Asks the server to stop; if it does not within a few seconds (busy or hung), terminates it.
     pub fn stop(&self) -> anyhow::Result<()> {
-        self.exchange(None, true, &mut |_| {})?;
-        let deadline = Instant::now() + ServerSettings::STOP_TIMEOUT;
+        let _ = self.exchange(None, true, &mut |_| {}, Some(ServerSettings::PING_TIMEOUT));
+        if Self::wait_released(ServerSettings::STOP_TIMEOUT)? {
+            return Ok(());
+        }
+        Self::terminate(self.info.pid)?;
+        if Self::wait_released(ServerSettings::KILL_TIMEOUT)? {
+            return Ok(());
+        }
+        bail!("the s1grep background process (pid {}) did not stop", self.info.pid)
+    }
+
+    fn wait_released(timeout: Duration) -> anyhow::Result<bool> {
+        let deadline = Instant::now() + timeout;
         while Instant::now() < deadline {
             if SearchServer::lock()?.is_some() {
-                return Ok(());
+                return Ok(true);
             }
             std::thread::sleep(ServerSettings::POLL_INTERVAL);
         }
-        bail!("the s1grep server (pid {}) did not stop", self.info.pid)
+        Ok(false)
     }
 
+    #[cfg(unix)]
+    fn terminate(pid: u32) -> anyhow::Result<()> {
+        // SAFETY: kill only sends a signal to the process id the server recorded for itself.
+        let result = unsafe { libc::kill(pid as libc::pid_t, libc::SIGKILL) };
+        if result != 0 {
+            bail!("could not terminate the background process (pid {pid})");
+        }
+        Ok(())
+    }
+
+    #[cfg(windows)]
+    fn terminate(pid: u32) -> anyhow::Result<()> {
+        let status = Command::new("taskkill")
+            .args(["/PID", &pid.to_string(), "/F"])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()?;
+        if !status.success() {
+            bail!("could not terminate the background process (pid {pid})");
+        }
+        Ok(())
+    }
+
+    /// Sends one request and reads the replies; `reply_timeout` bounds each wait for a line (none for searches, which
+    /// stream progress while they index).
     fn exchange(
         &self,
         request: Option<SearchRequest>,
         shutdown: bool,
         progress: &mut dyn FnMut(IndexEvent),
+        reply_timeout: Option<Duration>,
     ) -> anyhow::Result<Option<SearchResponse>> {
         let address = SocketAddr::from((Ipv4Addr::LOCALHOST, self.info.port));
         let stream = TcpStream::connect_timeout(&address, ServerSettings::CONNECT_TIMEOUT)?;
+        stream.set_read_timeout(reply_timeout)?;
         let mut writer = &stream;
         let envelope = Envelope {
             token: self.info.token.clone(),
@@ -329,8 +383,12 @@ impl BackgroundServer {
                 folder.display()
             );
         }
-        if let Some(outdated) = ServerClient::any() {
-            let _ = outdated.stop();
+        if let Some(recorded) = ServerClient::recorded() {
+            // Busy with a batch of background indexing: it answers right after it.
+            if recorded.info.version == env!("CARGO_PKG_VERSION") {
+                return Ok(recorded);
+            }
+            let _ = recorded.stop();
         }
         progress(IndexEvent::StartingServer);
         let mut child = Self::spawn(models)?;

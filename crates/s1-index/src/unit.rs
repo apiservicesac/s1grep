@@ -20,6 +20,21 @@ impl CodeUnit {
         format!("{}\n{}\n\n{}", self.path, self.name, self.source)
     }
 
+    /// Short text embedded before the full one: path, name and the first lines of the definition. A tenth of the
+    /// tokens, so a whole project gets one in a fraction of the time, in any language the retriever knows.
+    pub fn outline_text(&self) -> String {
+        let head: String = self
+            .source
+            .lines()
+            .take(IndexLimits::OUTLINE_LINES)
+            .collect::<Vec<_>>()
+            .join("\n")
+            .chars()
+            .take(IndexLimits::OUTLINE_CHARACTERS)
+            .collect();
+        format!("{}\n{}\n\n{head}", self.path, self.name)
+    }
+
     /// Fingerprint of the name and source, so the same function shares one vector across projects even when its
     /// folder differs (the vector was computed with the first path seen; the path only nudges it).
     pub fn content_key(&self) -> String {

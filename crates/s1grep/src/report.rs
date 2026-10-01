@@ -3,6 +3,7 @@ use std::fmt::Write;
 use console::Style;
 use std::path::Path;
 
+use crate::searcher::FoundBy;
 use crate::service::SearchResponse;
 
 /// Human-readable results: one heading per function with its location and score, then the first lines of its code.
@@ -26,10 +27,13 @@ impl TextReport<'_> {
                 result.start_line,
                 result.end_line
             );
-            let score = match result.judge {
+            let mut score = match result.judge {
                 Some(probability) => format!("judge {:.0}%", probability * 100.0),
                 None => format!("{:.2} similar", result.similarity),
             };
+            if result.found_by == FoundBy::Outline {
+                score.push_str(" · by outline");
+            }
             let _ = writeln!(
                 text,
                 "{} {}  {}  {}",

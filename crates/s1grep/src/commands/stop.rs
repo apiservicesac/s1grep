@@ -8,7 +8,7 @@ pub struct StopCommand;
 impl StopCommand {
     /// Stops the background process and frees the memory its models use; the next search starts it again.
     pub fn run(self) -> anyhow::Result<()> {
-        match ServerClient::any() {
+        match ServerClient::recorded() {
             Some(client) => {
                 client.stop()?;
                 eprintln!("Stopped the s1grep background process (pid {}).", client.info.pid);

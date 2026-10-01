@@ -20,7 +20,8 @@ impl StatusCommand {
     /// One screen with the server, the models and every indexed project.
     pub fn run(self) -> anyhow::Result<()> {
         let display = ProgressDisplay::new();
-        let server = match ServerClient::any() {
+        let busy = ServerClient::any().is_none() && ServerClient::recorded().is_some();
+        let server = match ServerClient::recorded() {
             Some(client) => {
                 let lifetime = match client.info.idle_minutes {
                     Some(minutes) => format!("stops after {minutes} min without searches"),
@@ -28,7 +29,14 @@ impl StatusCommand {
                 };
                 format!(
                     "{}  {}",
-                    display.good(&format!("● running (pid {}), models in memory", client.info.pid)),
+                    if busy {
+                        display.warn(&format!(
+                            "● busy indexing (pid {}), searches wait for it",
+                            client.info.pid
+                        ))
+                    } else {
+                        display.good(&format!("● running (pid {}), models in memory", client.info.pid))
+                    },
                     display.dim(&format!("{lifetime} · `s1grep stop` stops it now"))
                 )
             }

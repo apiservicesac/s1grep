@@ -4,11 +4,10 @@ use std::time::Instant;
 
 use anyhow::{Context, bail};
 use clap::Args;
-use s1_index::StoredUnit;
 use serde::Deserialize;
 use serde_json::json;
 
-use crate::indexer::Indexer;
+use crate::indexer::{Indexer, Pass};
 use crate::models::{ModelDirectory, Retriever};
 use crate::project::Project;
 use crate::searcher::Searcher;
@@ -68,6 +67,9 @@ pub struct EvalCommand {
     repository_folders: Vec<PathBuf>,
     #[arg(long, value_enum, default_value_t = Retriever::Granite)]
     retriever: Retriever,
+    /// Search with the outline vectors only, as a project still being indexed is searched
+    #[arg(long)]
+    outline: bool,
     /// Candidates the judge reads (default: 5)
     #[arg(long)]
     judge_top: Option<usize>,
@@ -111,8 +113,10 @@ impl EvalCommand {
                 retriever: self.retriever,
             };
             indexer.scan(&project.root, &FileFilters::default().walk_options()?, &mut |_| {})?;
-            indexer.embed(&mut searcher.embedder, None, &mut |_| {})?;
-            let units: Vec<(StoredUnit, Vec<f32>)> = store.units_with_vectors(self.retriever.key(), None)?;
+            let pass = if self.outline { Pass::Outline } else { Pass::Whole };
+            indexer.embed(&mut searcher.embedder, pass, None, &mut |_| {})?;
+            let key = pass.key(self.retriever);
+            let units = store.searchable_units(key, key, None)?;
             for question in &questions {
                 let answers: Vec<(String, String)> = std::iter::once((&question.path, &question.function))
                     .chain(
@@ -171,7 +175,7 @@ impl EvalCommand {
             .copied()
             .unwrap_or_default();
         let summary = json!({
-            "retriever": self.retriever.key(), "judged": judged,
+            "retriever": self.retriever.key(), "outline": self.outline, "judged": judged,
             "results": tallies.iter().map(|(key, tally)| (key.clone(), tally.to_json())).collect::<serde_json::Map<_, _>>(),
             "median_search_seconds": (median * 1000.0).round() / 1000.0,
             "total_seconds": (started.elapsed().as_secs_f64() * 10.0).round() / 10.0,
