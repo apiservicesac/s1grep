@@ -1,89 +1,81 @@
+use std::io::IsTerminal;
 use std::path::PathBuf;
 use std::time::Instant;
 
 use clap::Args;
-use s1_index::IndexStore;
-use serde_json::json;
 
-use crate::models::{CacheDirectory, ModelDirectory, Retriever};
-use crate::searcher::{Hit, Indexer, Searcher};
+use crate::backend::{Answered, SearchBackend};
+use crate::models::ModelDirectory;
+use crate::report::TextReport;
+use crate::service::SearchRequest;
 
 #[derive(Args)]
-pub struct SearchCommand {
-    /// What the code does, in English or Spanish
-    query: String,
-    /// Repository to search (indexed on the fly; only changed files are re-read)
+pub struct SearchArgs {
+    /// What the code does, in English or Spanish, e.g. "where do we retry a failed payment"
+    pub query: Option<String>,
+    /// Repository or folder to search
     #[arg(default_value = ".")]
-    path: PathBuf,
+    pub path: PathBuf,
     /// Results to show
-    #[arg(long, short = 'n', default_value_t = 5)]
-    top: usize,
-    /// Candidates the judge reads (default: 5)
+    #[arg(long, short = 'n', default_value_t = SearchRequest::DEFAULT_TOP)]
+    pub top: usize,
+    /// Candidates the judge reads; more is slower and slightly more accurate
+    #[arg(long, default_value_t = 5)]
+    pub judge_top: usize,
+    /// Rank by embeddings only, without the judge
     #[arg(long)]
-    judge_top: Option<usize>,
-    /// Skip the System One judge and rank by embeddings only
+    pub no_judge: bool,
+    /// Also search tests/ and migrations/
     #[arg(long)]
-    no_judge: bool,
-    #[arg(long, value_enum, default_value_t = Retriever::Granite)]
-    retriever: Retriever,
-    /// Machine-readable output for agents
+    pub include_tests: bool,
+    /// Machine-readable output, for scripts and agents
     #[arg(long)]
-    json: bool,
-    /// Also search files under tests/ and migrations/
+    pub json: bool,
+    /// Lines of code shown under each result
+    #[arg(long, default_value_t = 6)]
+    pub lines: usize,
+    /// Run in this process even when `s1grep serve` is running
     #[arg(long)]
-    include_tests: bool,
-    #[arg(long)]
-    threads: Option<usize>,
+    pub no_server: bool,
+    #[arg(long, hide = true)]
+    pub threads: Option<usize>,
     #[command(flatten)]
-    models: ModelDirectory,
+    pub models: ModelDirectory,
 }
 
-impl SearchCommand {
-    const PREVIEW_LINES: usize = 6;
-
+impl SearchArgs {
     pub fn run(self) -> anyhow::Result<()> {
+        let Some(query) = self.query.as_deref().filter(|query| !query.trim().is_empty()) else {
+            anyhow::bail!("say what the code does, e.g. s1grep \"where do we retry a failed payment\" .");
+        };
         let started = Instant::now();
-        let mut searcher = Searcher::load(&self.models, self.retriever, !self.no_judge, self.threads)?;
-        let mut store = IndexStore::open(&CacheDirectory::index_for(&self.path)?)?;
-        let refresh =
-            Indexer { store: &mut store, embedder: &mut searcher.embedder, retriever: self.retriever }.refresh(&self.path, self.include_tests)?;
-        let units = store.units_with_vectors(self.retriever.key())?;
-        let judged = self.judge_top.unwrap_or(self.retriever.default_judged());
-        let search_started = Instant::now();
-        let hits = searcher.search(&self.query, &units, judged)?;
-        let search_seconds = search_started.elapsed().as_secs_f64();
-        let shown: Vec<&Hit> = hits.iter().take(self.top).collect();
+        let judge_top = if self.no_judge { 0 } else { self.judge_top };
+        let request = SearchRequest::new(query, &self.path, self.top, judge_top, self.include_tests)?;
+        let mut backend = SearchBackend::new(self.models.clone(), self.threads, !self.no_server);
+        let (response, answered) = backend.search(&request)?;
         if self.json {
-            let results: Vec<_> = shown.iter().enumerate().map(|(rank, hit)| hit.to_json(rank + 1)).collect();
-            let document = json!({
-                "query": self.query, "retriever": self.retriever.key(), "judge": searcher.has_judge(),
-                "judged": if searcher.has_judge() { judged } else { 0 }, "functions": units.len(),
-                "search_seconds": (search_seconds * 1000.0).round() / 1000.0, "results": results,
-            });
-            println!("{}", serde_json::to_string_pretty(&document)?);
+            println!("{}", serde_json::to_string_pretty(&response)?);
             return Ok(());
         }
-        for (rank, hit) in shown.iter().enumerate() {
-            let judge = hit.judge.map_or(String::from("  -  "), |value| format!("{:>4.0}%", value * 100.0));
-            println!(
-                "{:>2}. {}:{}-{}  {}   [judge {judge} · similarity {:.2}]",
-                rank + 1,
-                self.path.join(&hit.unit.path).display(),
-                hit.unit.start_line,
-                hit.unit.end_line,
-                hit.unit.name,
-                hit.similarity
-            );
-            for line in hit.unit.source.lines().take(Self::PREVIEW_LINES) {
-                println!("      {line}");
+        let color = std::io::stdout().is_terminal() && std::env::var_os("NO_COLOR").is_none();
+        print!(
+            "{}",
+            TextReport {
+                response: &response,
+                preview_lines: self.lines,
+                color
             }
-            println!();
-        }
+            .render()
+        );
+        let source = match answered {
+            Answered::Server => "s1grep serve",
+            Answered::Local => "this process (run `s1grep serve` to keep the models loaded)",
+        };
         eprintln!(
-            "{} functions · {} files re-indexed · search {:.2} s · total {:.2} s",
-            units.len(),
-            refresh.changed_files,
-            search_seconds,
+            "{} functions · {} files re-indexed · search {:.2} s · total {:.2} s · {source}",
+            response.functions,
+            response.reindexed_files,
+            response.search_seconds,
             started.elapsed().as_secs_f64()
         );
         Ok(())

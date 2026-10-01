@@ -3,11 +3,12 @@
 Find code by asking what it does, in English or Spanish. s1grep runs locally: your code never leaves the machine.
 
 ```text
-$ s1grep search "where do we retry a failed payment" ~/work/shop
- 1. ~/work/shop/billing/gateway/client.py:41-58  GatewayClient.send_with_retry   [judge  93% · similarity 0.71]
-      def send_with_retry(self, document, attempts=3):
-          for attempt in range(attempts):
-          ...
+$ cd ~/work/shop && s1grep "where do we retry a failed payment"
+ 1. billing/gateway/client.py:41-58  GatewayClient.send_with_retry  judge 93%
+    def send_with_retry(self, document, attempts=3):
+        for attempt in range(attempts):
+            response = self.post(document)
+    … 6 more lines
 ```
 
 Status: v0.1, early. Python repositories only; Linux (x86-64, glibc 2.38 or newer: Ubuntu 24.04, Debian 13) and
@@ -20,13 +21,12 @@ Windows (x86-64).
 2. Download the models once (about 2.4 GB, checked with SHA-256):
 
    ```sh
-   s1grep models download
-   s1grep models status
+   s1grep setup
    ```
 3. Search:
 
    ```sh
-   s1grep search "where do we retry a failed payment" path/to/repo
+   s1grep "where do we retry a failed payment" path/to/repo
    ```
 
 ## How it works
@@ -52,24 +52,46 @@ times against 145 for the embeddings alone, with a median search of 1.5 s on an 
 ## Usage
 
 ```sh
-s1grep index ~/work/shop                                    # optional: search indexes on the fly
-s1grep search "validate the token expiry" ~/work/shop
-s1grep search "dónde se valida que el token no haya expirado" ~/work/shop -n 10
-s1grep search "export rows to csv" . --json                 # machine-readable, for agents
-s1grep search "export rows to csv" . --no-judge             # embeddings only
-s1grep units ~/work/shop                                    # the functions the index stores, as JSON lines
+s1grep "validate the token expiry"                       # search the current folder
+s1grep "dónde se valida que el token no haya expirado" ~/work/shop -n 10
+s1grep "export rows to csv" . --json                     # machine-readable, for scripts and agents
 ```
 
-Options: `--judge-top N`, `--include-tests` (tests/ and migrations/ are skipped by
-default), `--threads N`, `--models <folder>`.
+| Option | What it does |
+|---|---|
+| `-n, --top N` | Results to show (default 5) |
+| `--judge-top N` | Candidates the judge reads (default 5; 10 is slower and slightly more accurate) |
+| `--no-judge` | Rank by embeddings only |
+| `--include-tests` | Also search `tests/` and `migrations/`, skipped by default |
+| `--lines N` | Lines of code shown under each result (default 6) |
+| `--json` | Results as JSON, with the whole source of each function |
 
-`s1grep eval --exam <folder> --repos <folder>` runs an exam (one `<repository>.json` per repository with `text`,
-`language`, `path`, `function` and optional `also_accept`) through the full pipeline and reports top-1 and top-5 per
-language plus the median search time.
+| Command | What it does |
+|---|---|
+| `s1grep setup` | Downloads the models, once |
+| `s1grep doctor` | Shows whether the models, the server and the index are in place |
+| `s1grep serve` | Keeps the models loaded; searches find it on their own and take about 1.5 s instead of about 10 s |
+| `s1grep mcp` | Runs as an MCP server with one tool, `search_code`, for coding agents |
+| `s1grep skill --install` | Installs the Claude Code skill that tells agents when to use s1grep |
+| `s1grep index [PATH]` | Indexes a large repository ahead of the first search |
+
+The first search in a repository builds its index (about 2 minutes per 1,500 functions on an 8-core CPU); later
+searches only re-read files that changed.
+
+### With coding agents
+
+```sh
+s1grep skill --install                    # Claude Code skill
+claude mcp add s1grep -- s1grep mcp       # Claude Code MCP server
+codex mcp add s1grep -- s1grep mcp        # Codex MCP server
+```
+
+Other agents take the command `s1grep` with the argument `mcp` over stdio. The MCP server loads the models on the first
+call, or uses `s1grep serve` when it is running.
 
 ## Models
 
-`s1grep models download` puts the model bundles in `~/.cache/s1grep/models` (`%LOCALAPPDATA%\s1grep\models` on
+`s1grep setup` puts the model bundles in `~/.cache/s1grep/models` (`%LOCALAPPDATA%\s1grep\models` on
 Windows); `--models` or `$S1GREP_MODELS` point elsewhere.
 
 | Bundle | Hugging Face repository |
@@ -85,7 +107,7 @@ Both can also be rebuilt from the original checkpoints with `tools/model-export`
 |---|---|
 | `crates/s1-engine` | Typed questions, Laya sequence encoding, ONNX Runtime sessions, calibrated answers, embedders |
 | `crates/s1-index` | Python function extraction, repository walking, the SQLite index, vector ranking and rank fusion |
-| `crates/s1grep` | Command line: `search`, `index`, `models`, `eval`, `rerank-eval`, `units`, `bench`, `decide` |
+| `crates/s1grep` | Command line, background server and MCP server; `eval`, `rerank-eval`, `units`, `bench` and `decide` are hidden development commands |
 | `tools/model-export` | Development only: exports models to ONNX and records parity fixtures from Python |
 | `docs/decisions.md` | Measured decisions (export, precision, latency budget) |
 | `docs/model-cards` | The Hugging Face cards of s1-code v1, v2 and v3 |

@@ -1,22 +1,21 @@
 use std::io::{Read, Write};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use anyhow::{Context, bail};
-use clap::{Args, Subcommand};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
-use crate::models::{CacheDirectory, ModelDirectory, Retriever};
+use crate::models::ModelDirectory;
 
 /// A model bundle s1grep needs, and where it lives on Hugging Face.
-struct Published {
-    bundle: &'static str,
-    repository: &'static str,
+pub struct Published {
+    pub bundle: &'static str,
+    pub repository: &'static str,
     folder: &'static str,
 }
 
 impl Published {
-    const ALL: [Published; 2] = [
+    pub const ALL: [Published; 2] = [
         Published {
             bundle: ModelDirectory::JUDGE_BUNDLE,
             repository: "api-service-sac/s1-code-v3",
@@ -134,63 +133,21 @@ impl HubClient {
     const PROGRESS_FROM: u64 = 50_000_000;
 }
 
-#[derive(Subcommand)]
-enum ModelsAction {
-    /// Download the models s1grep needs (about 2.4 GB) into the model folder
-    Download {
-        /// Download again even when a file is already there
-        #[arg(long)]
-        force: bool,
-    },
-    /// Show where the models are and whether each one is present
-    Status,
+/// Puts the published bundles in a model folder, skipping files that are already complete.
+pub struct ModelInstaller {
+    hub: HubClient,
 }
 
-#[derive(Args)]
-pub struct ModelsCommand {
-    #[command(subcommand)]
-    action: ModelsAction,
-    #[command(flatten)]
-    models: ModelDirectory,
-}
-
-impl ModelsCommand {
-    pub fn run(self) -> anyhow::Result<()> {
-        let root = self.root()?;
-        match self.action {
-            ModelsAction::Download { force } => Self::download(&root, force),
-            ModelsAction::Status => {
-                println!("{}", root.display());
-                for published in &Published::ALL {
-                    let present = root.join(published.bundle).join("model.onnx").is_file();
-                    println!(
-                        "  {:<22} {}",
-                        published.bundle,
-                        if present {
-                            "ready"
-                        } else {
-                            "missing (run: s1grep models download)"
-                        }
-                    );
-                }
-                Ok(())
-            }
-        }
+impl ModelInstaller {
+    pub fn new() -> Self {
+        Self { hub: HubClient::new() }
     }
 
-    fn root(&self) -> anyhow::Result<PathBuf> {
-        match self.models.root() {
-            Some(root) => Ok(root.to_path_buf()),
-            None => Ok(CacheDirectory::root()?.join("models")),
-        }
-    }
-
-    fn download(root: &Path, force: bool) -> anyhow::Result<()> {
-        let hub = HubClient::new();
+    pub fn install(&self, root: &Path, force: bool) -> anyhow::Result<()> {
         for published in &Published::ALL {
             let folder = root.join(published.bundle);
             std::fs::create_dir_all(&folder).with_context(|| format!("creating {}", folder.display()))?;
-            for file in hub.files(published)? {
+            for file in self.hub.files(published)? {
                 let name = file.path.rsplit('/').next().unwrap_or(&file.path).to_string();
                 let target = folder.join(&name);
                 let complete = target.metadata().is_ok_and(|metadata| metadata.len() == file.size);
@@ -198,14 +155,16 @@ impl ModelsCommand {
                     continue;
                 }
                 eprintln!("{} · {name} ({:.1} MB)", published.bundle, file.size as f64 / 1e6);
-                hub.download(published, &file, &target)?;
+                self.hub.download(published, &file, &target)?;
             }
         }
-        eprintln!(
-            "models ready in {} (retriever: {})",
-            root.display(),
-            Retriever::Granite.bundle_name()
-        );
         Ok(())
+    }
+
+    /// Whether every published bundle has its graph in `root`.
+    pub fn is_complete(root: &Path) -> bool {
+        Published::ALL
+            .iter()
+            .all(|published| root.join(published.bundle).join("model.onnx").is_file())
     }
 }

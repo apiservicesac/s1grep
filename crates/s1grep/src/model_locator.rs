@@ -21,7 +21,10 @@ impl ModelLocator {
             None => Self::cache_directory()?.join("models").join(Self::DEFAULT_MODEL),
         };
         if !directory.is_dir() {
-            bail!("no model at {} (pass --model or set S1GREP_MODEL_DIR)", directory.display());
+            bail!(
+                "no model at {} (pass --model or set S1GREP_MODEL_DIR)",
+                directory.display()
+            );
         }
         ModelBundle::open(&directory).with_context(|| format!("opening model bundle {}", directory.display()))
     }

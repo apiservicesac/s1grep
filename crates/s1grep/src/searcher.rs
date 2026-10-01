@@ -46,7 +46,8 @@ impl Indexer<'_> {
             }
         }
         for file in &files {
-            let bytes = std::fs::read(&file.absolute).with_context(|| format!("reading {}", file.absolute.display()))?;
+            let bytes =
+                std::fs::read(&file.absolute).with_context(|| format!("reading {}", file.absolute.display()))?;
             let hash = content_hash(&bytes);
             if self.store.file_hash(&file.relative)?.as_deref() == Some(hash.as_str()) {
                 continue;
@@ -80,18 +81,6 @@ pub struct Hit {
     pub judge: Option<f64>,
 }
 
-impl Hit {
-    pub fn to_json(&self, rank: usize) -> Value {
-        json!({
-            "rank": rank, "path": self.unit.path, "name": self.unit.name,
-            "start_line": self.unit.start_line, "end_line": self.unit.end_line,
-            "similarity": (self.similarity * 10000.0).round() / 10000.0,
-            "judge": self.judge.map(|value| (value * 10000.0).round() / 10000.0),
-            "retriever_rank": self.retriever_rank,
-        })
-    }
-}
-
 /// The two-stage search: the embedder brings candidates, s1-code judges the first few, and both orders are fused.
 pub struct Searcher {
     pub embedder: Embedder,
@@ -103,7 +92,12 @@ impl Searcher {
     pub const TEMPLATE: &'static str = "This code answers the search: ";
     pub const CANDIDATES: usize = 25;
 
-    pub fn load(models: &ModelDirectory, retriever: Retriever, with_judge: bool, threads: Option<usize>) -> anyhow::Result<Self> {
+    pub fn load(
+        models: &ModelDirectory,
+        retriever: Retriever,
+        with_judge: bool,
+        threads: Option<usize>,
+    ) -> anyhow::Result<Self> {
         let mut options = EngineOptions::default();
         if let Some(threads) = threads {
             options.threads = threads;
@@ -116,7 +110,11 @@ impl Searcher {
         } else {
             None
         };
-        Ok(Self { embedder, judge, retriever })
+        Ok(Self {
+            embedder,
+            judge,
+            retriever,
+        })
     }
 
     pub fn has_judge(&self) -> bool {

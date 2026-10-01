@@ -42,26 +42,29 @@ impl Retriever {
 #[derive(Args, Clone)]
 pub struct ModelDirectory {
     /// Folder holding the model bundles (s1-code-v3-onnx, granite-278m-onnx, ...)
-    #[arg(long = "models", env = "S1GREP_MODELS", global = true)]
-    root: Option<PathBuf>,
+    #[arg(id = "models", long = "models", env = "S1GREP_MODELS", value_name = "FOLDER")]
+    folder: Option<PathBuf>,
 }
 
 impl ModelDirectory {
     pub const JUDGE_BUNDLE: &'static str = "s1-code-v3-onnx";
 
-    /// The folder passed with `--models` or `S1GREP_MODELS`, if any.
-    pub fn root(&self) -> Option<&std::path::Path> {
-        self.root.as_deref()
+    /// The folder in use: `--models`, `S1GREP_MODELS`, or the cache.
+    pub fn resolved(&self) -> anyhow::Result<PathBuf> {
+        match &self.folder {
+            Some(folder) => Ok(folder.clone()),
+            None => Ok(CacheDirectory::root()?.join("models")),
+        }
     }
 
     pub fn bundle(&self, name: &str) -> anyhow::Result<PathBuf> {
-        let root = match &self.root {
-            Some(root) => root.clone(),
-            None => CacheDirectory::root()?.join("models"),
-        };
+        let root = self.resolved()?;
         let directory = root.join(name);
         if !directory.is_dir() {
-            bail!("model {name} not found in {} (run `s1grep models download`, or pass --models)", root.display());
+            bail!(
+                "model {name} is not in {}; run `s1grep setup` to download the models",
+                root.display()
+            );
         }
         Ok(directory)
     }
@@ -84,7 +87,8 @@ impl CacheDirectory {
 
     /// One index per repository, named after a hash of its absolute path, so indexing never writes into the repo.
     pub fn index_for(repository: &std::path::Path) -> anyhow::Result<PathBuf> {
-        let absolute = std::fs::canonicalize(repository).with_context(|| format!("resolving {}", repository.display()))?;
+        let absolute =
+            std::fs::canonicalize(repository).with_context(|| format!("resolving {}", repository.display()))?;
         let key = s1_index::content_hash(absolute.to_string_lossy().as_bytes());
         Ok(Self::root()?.join("indexes").join(format!("{}.sqlite", &key[..16])))
     }

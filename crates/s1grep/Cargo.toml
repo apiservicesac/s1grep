@@ -17,3 +17,4 @@ serde_json.workspace = true
 ort.workspace = true
 ureq = { version = "3", default-features = false, features = ["rustls", "json"] }
 sha2 = "0.10"
+getrandom = "0.3"

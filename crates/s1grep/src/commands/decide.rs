@@ -33,7 +33,10 @@ impl DecideCommand {
         let questions: Value = serde_json::from_str(&questions_text).context("--questions is not valid JSON")?;
         let questions = QuestionSet::from_json(&questions)?;
         let state = self.read_state()?;
-        let mut options = EngineOptions { accelerator: self.device, ..EngineOptions::default() };
+        let mut options = EngineOptions {
+            accelerator: self.device,
+            ..EngineOptions::default()
+        };
         if let Some(threads) = self.threads {
             options.threads = threads;
         }
@@ -52,7 +55,14 @@ impl DecideCommand {
                 text
             }
         };
-        let is_json = self.state.as_ref().is_some_and(|path| path.extension().is_some_and(|extension| extension == "json"));
-        Ok(if is_json { serde_json::from_str(&text)? } else { Value::String(text) })
+        let is_json = self
+            .state
+            .as_ref()
+            .is_some_and(|path| path.extension().is_some_and(|extension| extension == "json"));
+        Ok(if is_json {
+            serde_json::from_str(&text)?
+        } else {
+            Value::String(text)
+        })
     }
 }

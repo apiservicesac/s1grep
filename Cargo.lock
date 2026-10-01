@@ -1477,6 +1477,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
+ "getrandom 0.3.4",
  "ort",
  "s1-engine",
  "s1-index",

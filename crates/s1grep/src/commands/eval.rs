@@ -86,7 +86,11 @@ impl EvalCommand {
             .filter_map(Result::ok)
             .map(|entry| entry.path())
             .filter(|path| path.extension().is_some_and(|extension| extension == "json"))
-            .filter(|path| !path.file_name().is_some_and(|name| name.to_string_lossy().starts_with('_')))
+            .filter(|path| {
+                !path
+                    .file_name()
+                    .is_some_and(|name| name.to_string_lossy().starts_with('_'))
+            })
             .collect();
         exam_files.sort();
         for exam_file in exam_files {
@@ -95,37 +99,70 @@ impl EvalCommand {
             let questions: Vec<ExamQuestion> = serde_json::from_str(&std::fs::read_to_string(&exam_file)?)
                 .with_context(|| format!("parsing {}", exam_file.display()))?;
             let mut store = IndexStore::open(&CacheDirectory::index_for(&root)?)?;
-            Indexer { store: &mut store, embedder: &mut searcher.embedder, retriever: self.retriever }.refresh(&root, false)?;
+            Indexer {
+                store: &mut store,
+                embedder: &mut searcher.embedder,
+                retriever: self.retriever,
+            }
+            .refresh(&root, false)?;
             let units: Vec<(StoredUnit, Vec<f32>)> = store.units_with_vectors(self.retriever.key())?;
             for question in &questions {
                 let answers: Vec<(String, String)> = std::iter::once((&question.path, &question.function))
-                    .chain(question.also_accept.iter().map(|answer| (&answer.path, &answer.function)))
+                    .chain(
+                        question
+                            .also_accept
+                            .iter()
+                            .map(|answer| (&answer.path, &answer.function)),
+                    )
                     .map(|(path, function)| {
-                        (path.strip_prefix(&format!("{repository}/")).unwrap_or(path).to_string(), function.clone())
+                        (
+                            path.strip_prefix(&format!("{repository}/")).unwrap_or(path).to_string(),
+                            function.clone(),
+                        )
                     })
                     .collect();
-                let is_answer = |path: &str, name: &str| answers.iter().any(|(expected_path, expected_name)| expected_path == path && expected_name == name);
+                let is_answer = |path: &str, name: &str| {
+                    answers
+                        .iter()
+                        .any(|(expected_path, expected_name)| expected_path == path && expected_name == name)
+                };
                 let search_started = Instant::now();
                 let hits = searcher.search(&question.text, &units, judged)?;
                 search_seconds.push(search_started.elapsed().as_secs_f64());
-                let fused_rank = hits.iter().position(|hit| is_answer(&hit.unit.path, &hit.unit.name)).map(|index| index + 1);
+                let fused_rank = hits
+                    .iter()
+                    .position(|hit| is_answer(&hit.unit.path, &hit.unit.name))
+                    .map(|index| index + 1);
                 let retriever_rank = hits
                     .iter()
                     .filter(|hit| is_answer(&hit.unit.path, &hit.unit.name))
                     .map(|hit| hit.retriever_rank)
                     .min();
                 let judge_best = hits.iter().filter(|hit| hit.judge.is_some()).max_by(|left, right| {
-                    left.judge.unwrap().total_cmp(&right.judge.unwrap()).then(right.retriever_rank.cmp(&left.retriever_rank))
+                    left.judge
+                        .unwrap()
+                        .total_cmp(&right.judge.unwrap())
+                        .then(right.retriever_rank.cmp(&left.retriever_rank))
                 });
                 let judge_first = judge_best.is_some_and(|hit| is_answer(&hit.unit.path, &hit.unit.name));
                 for key in ["all".to_string(), question.language.clone()] {
-                    tallies.entry(key).or_default().add(retriever_rank, judge_first, fused_rank);
+                    tallies
+                        .entry(key)
+                        .or_default()
+                        .add(retriever_rank, judge_first, fused_rank);
                 }
             }
-            eprintln!("{repository}: {} questions over {} functions", questions.len(), units.len());
+            eprintln!(
+                "{repository}: {} questions over {} functions",
+                questions.len(),
+                units.len()
+            );
         }
         search_seconds.sort_by(f64::total_cmp);
-        let median = search_seconds.get(search_seconds.len() / 2).copied().unwrap_or_default();
+        let median = search_seconds
+            .get(search_seconds.len() / 2)
+            .copied()
+            .unwrap_or_default();
         let summary = json!({
             "retriever": self.retriever.key(), "judged": judged,
             "results": tallies.iter().map(|(key, tally)| (key.clone(), tally.to_json())).collect::<serde_json::Map<_, _>>(),
