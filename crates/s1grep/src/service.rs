@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use anyhow::Context;
-use s1_index::{LanguageSettings, PathExcludes, VectorRow, WalkOptions};
+use s1_index::{LanguageSettings, PathExcludes, WalkOptions};
 use serde::{Deserialize, Serialize};
 
 use crate::cache::{ProjectFolder, ProjectInfo};
@@ -238,22 +238,25 @@ impl SearchService {
             if report.changed > 0 || report.removed > 0 || embedded > 0 {
                 session.mark_changed();
             }
+            session.apply_scan(&report);
         }
         let coverage = session.store.coverage(&whole, scope)?;
         let excludes = PathExcludes::new(&project.root, &request.filters.excludes)?;
-        let keep = |row: &VectorRow| {
-            scope.is_none_or(|scope| row.path == scope || row.path.starts_with(&format!("{scope}/")))
-                && !excludes.excludes(&row.path)
+        let keep = |path: &str| {
+            scope.is_none_or(|scope| path == scope || path.starts_with(&format!("{scope}/")))
+                && !excludes.excludes(path)
         };
         let judged = if self.searcher.has_judge() {
             request.judge_top
         } else {
             0
         };
-        let (vectors, store) = session.vectors(self.retriever)?;
-        let searchable = vectors.rows().filter(|row| keep(row)).count();
+        let (vectors, lexical, store) = session.vectors(self.retriever)?;
+        let searchable = vectors.rows().filter(|row| keep(&row.path)).count();
         let started = Instant::now();
-        let hits = self.searcher.search(&request.query, vectors, keep, store, judged)?;
+        let hits = self
+            .searcher
+            .search(&request.query, vectors, lexical, keep, store, judged)?;
         let search_seconds = started.elapsed().as_secs_f64();
         let judged = hits.iter().filter(|hit| hit.judge.is_some()).count();
         if total_pending > 0 {

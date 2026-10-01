@@ -11,7 +11,7 @@ supersedes it. [0000](0000-engine-measurements.md) collects the engine measureme
 | [0004](0004-embedding-space.md) | Every vector is keyed by its embedding space | done in stage 1 (0.2.5). |
 | [0005](0005-schema-migrations.md) | Versioned schema with migrations | done in stage 1 (0.2.5). |
 | [0006](0006-languages-as-data.md) | Languages are added as data: a grammar, a query and a registry entry | done (0.2.6): eight languages beside Python. |
-| [0007](0007-hybrid-retrieval.md) | Hybrid retrieval: vectors and BM25, fused, then the judge | Stage 4. |
+| [0007](0007-hybrid-retrieval.md) | Hybrid retrieval: vectors and BM25, fused, then the judge | done (0.4.0). |
 | [0008](0008-progressive-indexing.md) | Progressive indexing with priorities and reported coverage | outline pass in 0.2.4; bounded first wait, yielding to searches and resuming on start in 0.2.5. |
 | [0009](0009-ipc-protocol.md) | A versioned IPC protocol with typed errors and cancellation | Stage 5 (atomic server info and lock order in stage 1). |
 | [0010](0010-lab-outside-the-product.md) | Development tools live in s1-lab, outside the shipped binary | Implemented in stage 0. |

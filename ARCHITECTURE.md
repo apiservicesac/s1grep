@@ -53,8 +53,9 @@ s1grep "query" PATH
        ├─ many units missing   embed outlines (path, name, first lines) of the scope now, schedule the rest
        ├─ ProjectSession       the project's open catalog and its vectors in memory
        └─ Searcher::search     embed the query with each model → nearest 25 among whole-source vectors and
-                               among outline-only vectors → merge by reciprocal rank → read their sources →
-                               judge reads up to 5 (stops at 0.9) → rank fusion
+                               among outline-only vectors, plus the word index (every word for queries written
+                               like code, exact phrases otherwise) → merge by reciprocal rank → read their
+                               sources → judge reads up to 5 (stops at 0.9) → rank fusion
 ```
 
 The background process keeps up to four recently searched projects open (`ProjectSession`): the catalog connection
@@ -77,6 +78,7 @@ The process exits after 30 idle minutes once no job is left.
 ├── projects/<path fingerprint>/
 │   ├── project.json                 the project's real path, creation and last use
 │   ├── catalog.sqlite               files (size, mtime, hash) and units (path, name, lines, source)
+│   ├── lexical/                     tantivy word index of the units, kept in step with the catalog
 │   ├── lock, lock.pid               held while a process indexes the project, and by whom
 ├── server.json, server.lock         the running background process: port, token, pid, version
 └── server.log
@@ -108,8 +110,8 @@ s1-engine    TextEmbedder · DecisionModel
 | 0 | Documentation, `s1-lab`, settings and naming hygiene, clippy and Windows tests in CI | 0.2.5 |
 | 1 | Schema versions and migrations, `EmbeddingSpace`, one folder per project, `gc`, daemon robustness | 0.2.5 |
 | 2 | Resident project sessions, in-memory vector index, change detection without full rescans | 0.2.5 |
-| 3 | Faster embedding: smaller model, INT8, token cap, all gated by the exam | 0.3.0 |
-| 4 | More languages through tree-sitter queries; BM25 with tantivy and rank fusion | 0.4.0 |
+| 3 | Faster indexing and searches: a smaller model for outlines, the judge stopping early | 0.3.0 |
+| 4 | More languages through tree-sitter queries; BM25 with tantivy and rank fusion | 0.2.6, 0.4.0 |
 | 5 | Daemon concurrency, cancellation, typed errors, richer MCP, optional file watcher | 0.5.0 |
 | 6 | s1-code v4 trained on several languages | model |
 

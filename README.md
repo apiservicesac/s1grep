@@ -49,7 +49,9 @@ irm https://raw.githubusercontent.com/apiservicesac/s1grep/main/update.ps1 | iex
 
 1. **Index.** tree-sitter splits every source file into functions and methods. An embedding model turns each one into a
    vector, stored in a SQLite index under your cache folder, never inside the repository. Only changed files are re-read.
-2. **Retrieve.** The search is embedded with the same model and the 25 nearest functions become candidates.
+2. **Retrieve.** The search is embedded with the same model and the 25 nearest functions become candidates. A word
+   index adds exact matches: every word when the search is written like code (`parse_config`, `sendInvoice()`), and
+   the whole text otherwise, so a pasted error message finds the function that raises it.
 3. **Judge.** [s1-code](https://huggingface.co/api-service-sac/s1-code-v3), a small System One decision model
    (322M parameters, fine-tuned from Laya), reads the first candidates and answers one typed question per candidate:
    *does this code answer the search?* with a calibrated probability.

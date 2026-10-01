@@ -4,7 +4,7 @@ use std::time::Instant;
 
 use anyhow::{Context, bail};
 use clap::Args;
-use s1_index::VectorIndex;
+use s1_index::{LexicalIndex, VectorIndex};
 use serde::Deserialize;
 use serde_json::json;
 
@@ -31,6 +31,46 @@ struct ExamQuestion {
 struct ExamAnswer {
     path: String,
     function: String,
+}
+
+/// What each exam question is turned into before it is searched.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+enum QueryKind {
+    /// The question as written, in English or Spanish
+    Natural,
+    /// The answer's function name, as someone looking for a known name would type it
+    Identifier,
+    /// The longest quoted text of three or more words inside the answer, like a pasted error message
+    Literal,
+}
+
+impl QueryKind {
+    /// The query for `question` whose answer is `answer`; `None` when this kind has nothing to offer.
+    fn query(self, question: &str, answer: Option<&s1_index::CodeUnit>) -> Option<String> {
+        match self {
+            Self::Natural => Some(question.to_string()),
+            Self::Identifier => answer
+                .and_then(|unit| unit.name.rsplit('.').next())
+                .map(ToString::to_string),
+            Self::Literal => answer.and_then(|unit| Self::longest_literal(&unit.source)),
+        }
+    }
+
+    fn longest_literal(source: &str) -> Option<String> {
+        let mut best: Option<String> = None;
+        for quote in ['"', '\''] {
+            for (position, text) in source.split(quote).enumerate() {
+                let inside = position % 2 == 1 && !text.contains('\n');
+                if inside
+                    && text.split_whitespace().count() >= 3
+                    && best.as_ref().is_none_or(|current| text.len() > current.len())
+                {
+                    best = Some(text.trim().to_string());
+                }
+            }
+        }
+        best
+    }
 }
 
 #[derive(Default)]
@@ -83,6 +123,15 @@ pub struct EvalCommand {
     /// Judge every candidate, with no early stop
     #[arg(long)]
     judge_all: bool,
+    /// Write one JSON line per question (query, language, where the answer ranked, what found the first result)
+    #[arg(long)]
+    details: Option<PathBuf>,
+    /// What to search for each question: the question itself, the answer's name, or a quoted text from it
+    #[arg(long, value_enum, default_value_t = QueryKind::Natural)]
+    queries: QueryKind,
+    /// Weight of the word index's list in the merge (default: the shipped setting; 0 leaves it out)
+    #[arg(long, default_value_t = SearchSettings::LEXICAL_WEIGHT)]
+    lexical_weight: f64,
     #[command(flatten)]
     models: ModelDirectory,
 }
@@ -103,7 +152,9 @@ impl EvalCommand {
             Some(self.early_stop.unwrap_or(SearchSettings::JUDGE_EARLY_STOP))
         };
         searcher.set_early_stop(early_stop);
+        searcher.set_lexical_weight(self.lexical_weight);
         let mut judged_total = 0;
+        let mut details = Vec::new();
         let mut tallies: BTreeMap<String, Tally> = BTreeMap::new();
         let mut search_seconds = Vec::new();
         let mut exam_files: Vec<PathBuf> = std::fs::read_dir(&self.exam)
@@ -133,6 +184,14 @@ impl EvalCommand {
             let pass = if self.outline { Pass::Outline } else { Pass::Whole };
             indexer.embed(searcher.embedder_for(pass), pass, None, &mut |_| {})?;
             let key = pass.key(self.retriever);
+            let lexical = if self.lexical_weight > 0.0 {
+                let mut words = LexicalIndex::open(&project.folder.lexical())?;
+                words.rebuild(&store.all_units()?)?;
+                Some(words)
+            } else {
+                None
+            };
+            let all_units = store.all_units()?;
             let rows = VectorIndex::new(store.vector_rows(&key, None)?);
             let index = match pass {
                 Pass::Whole => SearchIndexes {
@@ -164,8 +223,15 @@ impl EvalCommand {
                         .iter()
                         .any(|(expected_path, expected_name)| expected_path == path && expected_name == name)
                 };
+                let answer = all_units
+                    .iter()
+                    .find(|stored| is_answer(&stored.unit.path, &stored.unit.name))
+                    .map(|stored| &stored.unit);
+                let Some(query) = self.queries.query(&question.text, answer) else {
+                    continue;
+                };
                 let search_started = Instant::now();
-                let hits = searcher.search(&question.text, &index, |_| true, &store, judged)?;
+                let hits = searcher.search(&query, &index, lexical.as_ref(), |_| true, &store, judged)?;
                 search_seconds.push(search_started.elapsed().as_secs_f64());
                 judged_total += hits.iter().filter(|hit| hit.judge.is_some()).count();
                 let fused_rank = hits
@@ -184,6 +250,10 @@ impl EvalCommand {
                         .then(right.retriever_rank.cmp(&left.retriever_rank))
                 });
                 let judge_first = judge_best.is_some_and(|hit| is_answer(&hit.unit.path, &hit.unit.name));
+                details.push(
+                    json!({"repository": repository, "query": query, "language": question.language,
+                    "fused_rank": fused_rank, "first_found_by": hits.first().map(|hit| format!("{:?}", hit.found_by))}),
+                );
                 for key in ["all".to_string(), question.language.clone()] {
                     tallies
                         .entry(key)
@@ -197,13 +267,17 @@ impl EvalCommand {
                 index.rows().count()
             );
         }
+        if let Some(path) = &self.details {
+            let lines: Vec<String> = details.iter().map(ToString::to_string).collect();
+            std::fs::write(path, lines.join("\n") + "\n").with_context(|| format!("writing {}", path.display()))?;
+        }
         search_seconds.sort_by(f64::total_cmp);
         let median = search_seconds
             .get(search_seconds.len() / 2)
             .copied()
             .unwrap_or_default();
         let summary = json!({
-            "retriever": self.retriever.key(), "outline": self.outline, "judged": judged, "early_stop": early_stop,
+            "retriever": self.retriever.key(), "outline": self.outline, "judged": judged, "early_stop": early_stop, "lexical_weight": self.lexical_weight, "queries": format!("{:?}", self.queries),
             "mean_judged": judged_total as f64 / search_seconds.len().max(1) as f64,
             "results": tallies.iter().map(|(key, tally)| (key.clone(), tally.to_json())).collect::<serde_json::Map<_, _>>(),
             "median_search_seconds": (median * 1000.0).round() / 1000.0,

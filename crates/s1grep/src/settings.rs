@@ -27,6 +27,9 @@ impl SearchSettings {
     /// Reciprocal-rank merge of the whole-source and outline lists while a project is being indexed: a candidate at
     /// rank r of either list scores 1 / (this + r).
     pub const MERGE_SMOOTHING: f64 = 60.0;
+    /// Weight of the word index's list in the reciprocal-rank merge, against 1 for each vector list. Prose searches
+    /// use it only for exact phrases: with every word, it cost 13 to 23 answers on the exam (in Spanish mostly).
+    pub const LEXICAL_WEIGHT: f64 = 1.0;
 }
 
 /// How projects are read and indexed.
@@ -36,8 +39,10 @@ impl IndexSettings {
     /// Default ignore rules, written to the user's config folder on first use so they can be edited.
     pub const DEFAULT_IGNORE: &'static str = include_str!("../assets/default.s1grepignore");
     /// Fingerprints of the default rules earlier versions wrote, so an unedited copy is brought up to date.
-    pub const EARLIER_DEFAULT_IGNORES: [&'static str; 1] =
-        ["ed12cf16befc28361eee70ad1f080a8591f7ae072f32e0e90edb9d9cc161715b"];
+    pub const EARLIER_DEFAULT_IGNORES: [&'static str; 2] = [
+        "ed12cf16befc28361eee70ad1f080a8591f7ae072f32e0e90edb9d9cc161715b",
+        "5324e3e8829824c49128ed721e665dca9e2bd6602e4e584300e95da1a3137819",
+    ];
     /// Per-folder ignore file, read wherever it appears inside a project.
     pub const FOLDER_IGNORE_FILE: &'static str = ".s1grepignore";
     /// Larger files are generated code or data.

@@ -28,6 +28,29 @@ impl IndexLimits {
     pub const BUSY_TIMEOUT: Duration = Duration::from_secs(30);
 }
 
+/// The word index each project keeps beside its vectors (ADR-0007).
+pub struct LexicalSettings;
+
+impl LexicalSettings {
+    /// Folder of the index inside the project's folder, and the version of its fields and tokenizer: an index of
+    /// another version is rebuilt.
+    pub const FOLDER: &'static str = "lexical";
+    pub const FORMAT: &'static str = "lexical-v1";
+    pub const FORMAT_FILE: &'static str = "format";
+    /// Memory the index writer may use before it flushes (tantivy's minimum is 15 MB).
+    pub const WRITER_MEMORY: usize = 50_000_000;
+    /// How much a word counts in a function's name, its path and its code.
+    pub const NAME_BOOST: f32 = 3.0;
+    pub const PATH_BOOST: f32 = 1.5;
+    pub const BODY_BOOST: f32 = 1.0;
+    /// Shorter words are left out of queries.
+    pub const MINIMUM_TERM_LENGTH: usize = 2;
+    /// Words a query needs to be looked up as an exact phrase.
+    pub const MINIMUM_PHRASE_WORDS: usize = 2;
+    /// Hits fetched before keeping those in the searched folder.
+    pub const OVERFETCH: usize = 8;
+}
+
 /// Fusion of the retriever's order with the judge's: (judge share, rank smoothing), chosen on the dev split of the exam
 /// for s1-code v3, per retriever and number of candidates judged.
 pub struct FusionTable;

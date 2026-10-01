@@ -8,6 +8,8 @@ pub enum IndexError {
     Database(#[from] rusqlite::Error),
     #[error("parser error: {0}")]
     Parser(String),
+    #[error("word index error: {0}")]
+    Lexical(String),
     #[error("invalid exclude pattern {0}")]
     Pattern(String),
     #[error(

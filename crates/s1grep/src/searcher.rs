@@ -1,10 +1,11 @@
 use s1_engine::{Accelerator, Embedder, EmbedderBundle, EngineOptions, LayaEngine, ModelBundle, QuestionSet};
-use s1_index::{CodeUnit, FusionWeights, IndexStore, RankFusion, VectorIndex, VectorRow};
+use s1_index::{CodeUnit, FusionWeights, IndexStore, LexicalIndex, RankFusion, VectorIndex, VectorRow};
 
 use crate::indexer::Pass;
 use serde_json::{Value, json};
 
 use crate::models::{ModelDirectory, Retriever};
+use crate::query::QueryShape;
 use crate::settings::SearchSettings;
 
 /// One search result.
@@ -18,13 +19,14 @@ pub struct Hit {
     pub found_by: FoundBy,
 }
 
-/// Which vector found a result: the one of its whole source, or the outline one (path, name and signature) that a
-/// function has while its project is still being indexed.
+/// What found a result: the vector of its whole source, its outline vector (while its project is still being
+/// indexed), or only its words.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum FoundBy {
     Code,
     Outline,
+    Words,
 }
 
 /// What a search ranks: the vectors of whole sources, and the outline vectors of the functions that have no
@@ -40,9 +42,11 @@ impl SearchIndexes {
     }
 }
 
-/// One candidate before its source is read: which index and row found it, and with what similarity.
-struct Candidate<'a> {
-    row: &'a VectorRow,
+/// One candidate before its source is read: how it was found, its similarity when a vector found it, and its
+/// reciprocal-rank score summed over the lists that found it.
+struct Candidate {
+    unit_id: i64,
+    found_by: FoundBy,
     similarity: f32,
     score: f64,
 }
@@ -57,6 +61,8 @@ pub struct Searcher {
     retriever: Retriever,
     /// The judge stops reading candidates once one scores at least this; `None` reads them all.
     early_stop: Option<f64>,
+    /// Weight of the word index's list in the merge; 0 leaves it out.
+    lexical_weight: f64,
 }
 
 impl Searcher {
@@ -86,11 +92,16 @@ impl Searcher {
             judge,
             retriever,
             early_stop: Some(SearchSettings::JUDGE_EARLY_STOP),
+            lexical_weight: SearchSettings::LEXICAL_WEIGHT,
         })
     }
 
     pub fn set_early_stop(&mut self, threshold: Option<f64>) {
         self.early_stop = threshold;
+    }
+
+    pub fn set_lexical_weight(&mut self, weight: f64) {
+        self.lexical_weight = weight;
     }
 
     pub fn has_judge(&self) -> bool {
@@ -105,18 +116,19 @@ impl Searcher {
         }
     }
 
-    /// The functions that answer `query` best: the nearest rows of `indexes` that `keep` accepts, read from `store`,
-    /// with the judge's reading of the first `judged`, and the judge's order fused with the retriever's (weights
-    /// tuned on the development exam).
+    /// The functions that answer `query` best: the nearest functions by meaning in `indexes` and the best by words
+    /// in `lexical`, among those whose path `keep` accepts, read from `store`, with the judge's reading of the first
+    /// `judged`, and the judge's order fused with the retrieval order (weights tuned on the development exam).
     pub fn search(
         &mut self,
         query: &str,
         indexes: &SearchIndexes,
-        keep: impl Fn(&VectorRow) -> bool,
+        lexical: Option<&LexicalIndex>,
+        keep: impl Fn(&str) -> bool,
         store: &IndexStore,
         judged: usize,
     ) -> anyhow::Result<Vec<Hit>> {
-        let mut hits = self.by_meaning(query, indexes, keep, store)?;
+        let mut hits = self.candidates(query, indexes, lexical, keep, store)?;
         let judged = judged.min(hits.len());
         if self.judge.is_none() || judged == 0 {
             return Ok(hits);
@@ -129,16 +141,30 @@ impl Searcher {
         Ok(order.into_iter().map(|position| hits[position].clone()).collect())
     }
 
-    /// Nearest functions by each index, merged by reciprocal rank when both have rows. With only one index (a
-    /// project fully indexed, or not at all) its order is kept as it is.
-    fn by_meaning(
+    /// Up to `SearchSettings::CANDIDATES` functions merged from three lists by reciprocal rank: the nearest by
+    /// whole-source vectors, by outline vectors (functions not fully indexed yet) and by words. A function found by
+    /// several lists adds their scores. With a single list its order is kept as it is.
+    fn candidates(
         &mut self,
         query: &str,
         indexes: &SearchIndexes,
-        keep: impl Fn(&VectorRow) -> bool,
+        lexical: Option<&LexicalIndex>,
+        keep: impl Fn(&str) -> bool,
         store: &IndexStore,
     ) -> anyhow::Result<Vec<Hit>> {
         let mut candidates: Vec<Candidate> = Vec::new();
+        let mut add = |unit_id: i64, found_by: FoundBy, similarity: f32, rank: usize, weight: f64| {
+            let score = weight / (SearchSettings::MERGE_SMOOTHING + rank as f64 + 1.0);
+            match candidates.iter_mut().find(|candidate| candidate.unit_id == unit_id) {
+                Some(candidate) => candidate.score += score,
+                None => candidates.push(Candidate {
+                    unit_id,
+                    found_by,
+                    similarity,
+                    score,
+                }),
+            }
+        };
         for (index, embedder) in [
             (&indexes.whole, &mut self.embedder),
             (&indexes.outline, &mut self.outline_embedder),
@@ -147,27 +173,35 @@ impl Searcher {
                 continue;
             }
             let query_vector = embedder.embed_query(query)?;
-            for (rank, (position, similarity)) in index
-                .nearest(&query_vector, SearchSettings::CANDIDATES, &keep)
-                .into_iter()
-                .enumerate()
-            {
-                candidates.push(Candidate {
-                    row: index.row(position),
-                    similarity,
-                    score: 1.0 / (SearchSettings::MERGE_SMOOTHING + rank as f64 + 1.0),
-                });
+            let nearest = index.nearest(&query_vector, SearchSettings::CANDIDATES, |row| keep(&row.path));
+            for (rank, (position, similarity)) in nearest.into_iter().enumerate() {
+                let row = index.row(position);
+                let found_by = if row.whole { FoundBy::Code } else { FoundBy::Outline };
+                add(row.unit_id, found_by, similarity, rank, 1.0);
             }
         }
-        // Stable sort: on equal scores the whole-source candidate, pushed first, stays first.
+        // Searches written like code look for names: every word counts. Prose would only add noise (the code is
+        // often in another language than the question), so it uses the word index only for exact phrases, such as
+        // a pasted error message.
+        if let Some(lexical) = lexical.filter(|_| self.lexical_weight > 0.0) {
+            let hits = if QueryShape::looks_like_code(query) {
+                lexical.search(query, SearchSettings::CANDIDATES, &keep)?
+            } else {
+                lexical.search_phrase(query, SearchSettings::CANDIDATES, &keep)?
+            };
+            for (rank, hit) in hits.into_iter().enumerate() {
+                add(hit.unit_id, FoundBy::Words, 0.0, rank, self.lexical_weight);
+            }
+        }
+        // Stable sort: on equal scores the earlier list (whole sources, then outlines, then words) stays first.
         candidates.sort_by(|left, right| right.score.total_cmp(&left.score));
         candidates.truncate(SearchSettings::CANDIDATES);
-        let ids: Vec<i64> = candidates.iter().map(|candidate| candidate.row.unit_id).collect();
+        let ids: Vec<i64> = candidates.iter().map(|candidate| candidate.unit_id).collect();
         let units = store.units_by_ids(&ids)?;
         Ok(candidates
             .iter()
             .filter_map(|candidate| {
-                let stored = units.iter().find(|stored| stored.id == candidate.row.unit_id)?;
+                let stored = units.iter().find(|stored| stored.id == candidate.unit_id)?;
                 Some((candidate, stored))
             })
             .enumerate()
@@ -176,11 +210,7 @@ impl Searcher {
                 retriever_rank: rank + 1,
                 similarity: candidate.similarity,
                 judge: None,
-                found_by: if candidate.row.whole {
-                    FoundBy::Code
-                } else {
-                    FoundBy::Outline
-                },
+                found_by: candidate.found_by,
             })
             .collect())
     }

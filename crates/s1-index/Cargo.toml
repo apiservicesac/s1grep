@@ -21,4 +21,5 @@ tree-sitter-c-sharp = "0.23"
 ignore = "0.4"
 rusqlite = { version = "0.40", features = ["bundled"] }
 blake3 = "1.8"
+tantivy = "0.26"
 thiserror.workspace = true

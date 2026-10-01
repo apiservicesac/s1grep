@@ -151,6 +151,11 @@ impl ProjectFolder {
         self.path.join(CacheSettings::CATALOG)
     }
 
+    /// The project's word index (ADR-0007).
+    pub fn lexical(&self) -> PathBuf {
+        self.path.join(s1_index::LexicalSettings::FOLDER)
+    }
+
     pub fn lock_file(&self) -> PathBuf {
         self.path.join(CacheSettings::LOCK)
     }

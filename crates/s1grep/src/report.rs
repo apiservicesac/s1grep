@@ -32,8 +32,10 @@ impl TextReport<'_> {
                 Some(probability) => format!("judge {:.0}%", probability * 100.0),
                 None => format!("{:.2} similar", result.similarity),
             };
-            if result.found_by == FoundBy::Outline {
-                score.push_str(" · by outline");
+            match result.found_by {
+                FoundBy::Outline => score.push_str(" · by outline"),
+                FoundBy::Words => score.push_str(" · by words"),
+                FoundBy::Code => {}
             }
             let _ = writeln!(
                 text,

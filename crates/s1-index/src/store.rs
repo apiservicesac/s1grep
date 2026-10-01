@@ -284,6 +284,30 @@ impl IndexStore {
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
     }
 
+    /// Every unit of the project, for rebuilding an index kept beside the catalog.
+    pub fn all_units(&self) -> Result<Vec<StoredUnit>, IndexError> {
+        let mut statement = self
+            .connection
+            .prepare("SELECT id, path, name, start_line, end_line, source, content FROM units ORDER BY id")?;
+        let rows = statement.query_map([], Self::stored)?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
+    /// The units of these files.
+    pub fn units_in_files(&self, paths: &[String]) -> Result<Vec<StoredUnit>, IndexError> {
+        let mut statement = self.connection.prepare_cached(
+            "SELECT id, path, name, start_line, end_line, source, content FROM units WHERE path = ?1 ORDER BY id",
+        )?;
+        let mut units = Vec::new();
+        for path in paths {
+            let rows = statement.query_map([path], Self::stored)?;
+            for unit in rows {
+                units.push(unit?);
+            }
+        }
+        Ok(units)
+    }
+
     /// The units with these ids, in the same order; ids no longer in the index are left out.
     pub fn units_by_ids(&self, ids: &[i64]) -> Result<Vec<StoredUnit>, IndexError> {
         let mut statement = self

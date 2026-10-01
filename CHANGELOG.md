@@ -2,6 +2,21 @@
 
 All notable changes to `s1grep` are documented here. Versions follow [Semantic Versioning](https://semver.org).
 
+## [Unreleased]
+
+### Added
+- A word index per project (tantivy, BM25) with a tokenizer for code: it splits `camelCase`, `snake_case`, acronyms
+  and digits, folds accents, and knows no human language. Searches written like code (`parse_config`,
+  `sendInvoice()`, `client.retry`) use every word; other searches use it only for exact phrases, so pasting an error
+  message finds the function that contains it. On the exam: questions unchanged (168/189), function names 151/183
+  instead of 149/180, quoted text 63/77 instead of 52/66. Results found only by words are marked `by words`.
+- `s1-lab eval --queries identifier|literal` builds those query sets from the exam's answers, and `--details` writes
+  one line per question.
+
+### Fixed
+- An ignore file holding an unpublished development version of the defaults is now brought up to date like the
+  published ones.
+
 ## [0.3.0] — 2026-10-01
 
 ### Changed

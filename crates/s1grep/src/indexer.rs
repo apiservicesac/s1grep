@@ -57,13 +57,15 @@ impl Pass {
 }
 
 /// What a scan changed.
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default, Clone)]
 pub struct ScanReport {
     pub files: usize,
     pub changed: usize,
     pub removed: usize,
     /// Files that disappeared or could not be read between the walk and the read.
     pub skipped: usize,
+    /// Files whose functions were replaced or removed, for the indexes kept beside the catalog.
+    pub changed_paths: Vec<String>,
 }
 
 /// Keeps a project's index current in two steps: `scan` mirrors the files into functions (seconds, even for large
@@ -90,6 +92,7 @@ impl Indexer<'_> {
         for path in self.store.indexed_paths()? {
             if !seen.contains(path.as_str()) {
                 self.store.remove_file(&path)?;
+                report.changed_paths.push(path);
                 report.removed += 1;
             }
         }
@@ -142,6 +145,7 @@ impl Indexer<'_> {
             }
             let units = extractors.extract(&file.relative, &String::from_utf8_lossy(&bytes));
             self.store.replace_file(&file.relative, &state, &units)?;
+            report.changed_paths.push(file.relative.clone());
             report.changed += 1;
         }
         self.store.commit_batch()?;

@@ -34,6 +34,8 @@ Reference results (granite 278M, s1-code v3, the judge reads 5):
 |---|---|---|
 | Whole sources | 168 | 189 |
 | Outlines only (granite 97M-r2, the shipped outline model) | 133 | 166 |
+| Function names as queries (`--queries identifier`, 197) | 151 | 183 |
+| Quoted text from the answer as queries (`--queries literal`, 84) | 63 | 77 |
 
 ## Benchmarks
 
