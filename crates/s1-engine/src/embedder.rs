@@ -1,3 +1,4 @@
+use crate::settings::{BundleFiles, EmbedderSettings};
 use std::path::{Path, PathBuf};
 
 use ort::session::Session;
@@ -52,18 +53,14 @@ pub struct EmbedderBundle {
 }
 
 impl EmbedderBundle {
-    pub const GRAPH_FILE: &'static str = "model.onnx";
-    pub const TOKENIZER_FILE: &'static str = "tokenizer.json";
-    pub const CONFIG_FILE: &'static str = "embedder_config.json";
-
     pub fn open(directory: impl Into<PathBuf>) -> Result<Self, EngineError> {
         let directory = directory.into();
-        for file in [Self::GRAPH_FILE, Self::TOKENIZER_FILE, Self::CONFIG_FILE] {
+        for file in [BundleFiles::GRAPH, BundleFiles::TOKENIZER, BundleFiles::EMBEDDER_CONFIG] {
             if !directory.join(file).is_file() {
                 return Err(EngineError::MissingFile(directory.join(file)));
             }
         }
-        let path = directory.join(Self::CONFIG_FILE);
+        let path = directory.join(BundleFiles::EMBEDDER_CONFIG);
         let text = std::fs::read_to_string(&path).map_err(|source| EngineError::Io {
             path: path.clone(),
             source,
@@ -87,9 +84,6 @@ pub struct Embedder {
 }
 
 impl Embedder {
-    const PAD_CANDIDATES: [&'static str; 4] = ["<pad>", "[PAD]", "<|endoftext|>", "</s>"];
-    const DEFAULT_BATCH: usize = 16;
-
     pub fn load(bundle: &EmbedderBundle, threads: usize, accelerator: Accelerator) -> Result<Self, EngineError> {
         let builder = Session::builder()?
             .with_optimization_level(GraphOptimizationLevel::Level3)
@@ -97,8 +91,8 @@ impl Embedder {
             .map_err(ort::Error::from)?;
         let session = accelerator
             .configure(builder)?
-            .commit_from_file(bundle.directory.join(EmbedderBundle::GRAPH_FILE))?;
-        let mut tokenizer = Tokenizer::from_file(bundle.directory.join(EmbedderBundle::TOKENIZER_FILE))
+            .commit_from_file(bundle.directory.join(BundleFiles::GRAPH))?;
+        let mut tokenizer = Tokenizer::from_file(bundle.directory.join(BundleFiles::TOKENIZER))
             .map_err(|error| EngineError::Tokenizer(error.to_string()))?;
         tokenizer
             .with_truncation(Some(TruncationParams {
@@ -112,7 +106,7 @@ impl Embedder {
             .pad_token
             .iter()
             .map(String::as_str)
-            .chain(Self::PAD_CANDIDATES)
+            .chain(EmbedderSettings::PAD_CANDIDATES)
             .find_map(|token| tokenizer.token_to_id(token))
             .ok_or_else(|| EngineError::MissingSpecialToken("<pad>".to_string()))?;
         Ok(Self {
@@ -120,7 +114,7 @@ impl Embedder {
             tokenizer,
             config: bundle.config.clone(),
             pad_id,
-            batch_size: Self::DEFAULT_BATCH,
+            batch_size: EmbedderSettings::BATCH,
         })
     }
 

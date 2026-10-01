@@ -3,6 +3,8 @@ use std::path::PathBuf;
 use anyhow::Context;
 use clap::Args;
 
+use crate::settings::AgentSettings;
+
 #[derive(Args)]
 pub struct SkillCommand {
     /// Install it for Claude Code for this user (~/.claude/skills/s1grep)
@@ -14,8 +16,6 @@ pub struct SkillCommand {
 }
 
 impl SkillCommand {
-    const SKILL: &'static str = include_str!("../../assets/SKILL.md");
-
     /// Prints the agent skill, or installs it, and shows how to add the MCP server to common agents.
     pub fn run(self) -> anyhow::Result<()> {
         let target = if self.install {
@@ -26,13 +26,13 @@ impl SkillCommand {
             None
         };
         let Some(folder) = target else {
-            print!("{}", Self::SKILL);
+            print!("{}", AgentSettings::SKILL);
             eprintln!("\n(printed only; `s1grep skill --install` installs it for Claude Code)");
             return Ok(());
         };
         std::fs::create_dir_all(&folder).with_context(|| format!("creating {}", folder.display()))?;
         let file = folder.join("SKILL.md");
-        std::fs::write(&file, Self::SKILL).with_context(|| format!("writing {}", file.display()))?;
+        std::fs::write(&file, AgentSettings::SKILL).with_context(|| format!("writing {}", file.display()))?;
         eprintln!("Skill installed in {}.", file.display());
         eprintln!();
         eprintln!("To give agents the search_code tool through MCP as well:");

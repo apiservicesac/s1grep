@@ -1,3 +1,5 @@
+use crate::settings::IndexLimits;
+
 /// One searchable piece of code: a top-level function or a method written directly in a class.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CodeUnit {
@@ -13,9 +15,6 @@ pub struct CodeUnit {
 }
 
 impl CodeUnit {
-    /// Characters of source the judge reads, the same limit s1-code was trained with.
-    pub const JUDGE_SOURCE_CHARACTERS: usize = 1500;
-
     /// Text the retrieval model embeds: path, name and the full source (the model truncates by tokens).
     pub fn document_text(&self) -> String {
         format!("{}\n{}\n\n{}", self.path, self.name, self.source)
@@ -28,12 +27,12 @@ impl CodeUnit {
         hasher.update(self.name.as_bytes());
         hasher.update(b"\n");
         hasher.update(self.source.as_bytes());
-        hasher.finalize().to_hex()[..32].to_string()
+        hasher.finalize().to_hex()[..IndexLimits::CONTENT_KEY_LENGTH].to_string()
     }
 
     /// Text the judge reads as its state.
     pub fn judge_state(&self) -> String {
-        let source: String = self.source.chars().take(Self::JUDGE_SOURCE_CHARACTERS).collect();
+        let source: String = self.source.chars().take(IndexLimits::JUDGE_SOURCE_CHARACTERS).collect();
         format!("{}\n{}\n\n{}", self.path, self.name, source)
     }
 

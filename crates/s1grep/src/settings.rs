@@ -63,10 +63,17 @@ impl ServerSettings {
 pub struct DisplaySettings;
 
 impl DisplaySettings {
-    pub const PROGRESS_BAR_WIDTH: usize = 28;
+    /// indicatif layouts: a spinner for waits of unknown length, bars for reading files, indexing and downloading.
+    pub const SPINNER_TEMPLATE: &'static str = "{spinner:.cyan} {msg} {elapsed:.dim}";
+    pub const READING_TEMPLATE: &'static str = "{spinner:.cyan} Reading files {pos}/{len}";
+    pub const INDEXING_TEMPLATE: &'static str =
+        "{spinner:.cyan} Indexing {bar:28.cyan/dim} {human_pos}/{human_len} functions {msg:.dim}";
+    pub const DOWNLOAD_TEMPLATE: &'static str =
+        "{spinner:.cyan} {msg} {bar:28.cyan/dim} {bytes}/{total_bytes} {bytes_per_sec:.dim} {eta:.dim}";
+    /// Filled, current and empty cells of every bar.
+    pub const BAR_CHARACTERS: &'static str = "━╸━";
     pub const STATUS_BAR_WIDTH: usize = 24;
-    /// How often a live progress line is redrawn, and how often a plain one is printed when output is redirected.
-    pub const LIVE_INTERVAL: Duration = Duration::from_millis(120);
+    /// How often a plain progress line is printed when output is redirected.
     pub const PLAIN_INTERVAL: Duration = Duration::from_secs(10);
     /// Frame time of the animation shown while the models load.
     pub const SPINNER_INTERVAL: Duration = Duration::from_millis(80);
@@ -100,6 +107,11 @@ impl ModelSettings {
     pub const DOWNLOAD_PROGRESS_FROM: u64 = 50_000_000;
     /// Attempts per file when Hugging Face is busy (429) or fails for a moment (5xx, network).
     pub const DOWNLOAD_ATTEMPTS: u32 = 6;
+    /// Waits before the next attempt: after a 429 without Retry-After, after a 5xx, after a network error, and the
+    /// most a Retry-After is honoured.
+    pub const WAIT_WHEN_BUSY: Duration = Duration::from_secs(20);
+    pub const WAIT_AFTER_SERVER_ERROR: Duration = Duration::from_secs(10);
+    pub const WAIT_AFTER_NETWORK_ERROR: Duration = Duration::from_secs(5);
     pub const DOWNLOAD_MAXIMUM_WAIT: Duration = Duration::from_secs(60);
 
     pub const RELEASES: [ModelRelease; 2] = [
@@ -153,6 +165,37 @@ impl ModelSettings {
             ],
         },
     ];
+}
+
+/// Coding agents: the Claude Code skill and the MCP server.
+pub struct AgentSettings;
+
+impl AgentSettings {
+    pub const SKILL: &'static str = include_str!("../assets/SKILL.md");
+}
+
+/// Platform details. Only the Windows build reads them.
+#[cfg_attr(not(windows), allow(dead_code))]
+pub struct PlatformSettings;
+
+#[cfg_attr(not(windows), allow(dead_code))]
+impl PlatformSettings {
+    /// ONNX Runtime on Windows, loaded from next to s1grep.exe (Linux links it statically).
+    pub const WINDOWS_RUNTIME_LIBRARY: &'static str = "onnxruntime.dll";
+    /// Windows process creation flags for the background process: no console, and Ctrl+C elsewhere does not reach it.
+    pub const WINDOWS_DETACHED_PROCESS: u32 = 0x0000_0008;
+    pub const WINDOWS_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
+}
+
+/// The development commands `bench` and `decide`.
+pub struct BenchSettings;
+
+impl BenchSettings {
+    /// Bundle they load when no `--model` is given.
+    pub const MODEL: &'static str = "laya-multilingual";
+    /// The batched measurement: this many fragments of this many tokens.
+    pub const BATCH_SIZE: usize = 8;
+    pub const BATCH_TOKENS: usize = 128;
 }
 
 /// The MCP server for coding agents.

@@ -377,15 +377,22 @@ impl BackgroundServer {
         #[cfg(unix)]
         {
             use std::os::unix::process::CommandExt;
-            // Its own process group: Ctrl+C in the terminal that started it does not reach it.
-            command.process_group(0);
+            // Its own session, detached from the terminal: closing the terminal or Ctrl+C there does not stop it.
+            // SAFETY: setsid is async-signal-safe and the closure touches nothing else between fork and exec.
+            unsafe {
+                command.pre_exec(|| {
+                    libc::setsid();
+                    Ok(())
+                });
+            }
         }
         #[cfg(windows)]
         {
             use std::os::windows::process::CommandExt;
-            const DETACHED_PROCESS: u32 = 0x0000_0008;
-            const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
-            command.creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP);
+            command.creation_flags(
+                crate::settings::PlatformSettings::WINDOWS_DETACHED_PROCESS
+                    | crate::settings::PlatformSettings::WINDOWS_NEW_PROCESS_GROUP,
+            );
         }
         command.spawn().context("starting the s1grep background process")
     }

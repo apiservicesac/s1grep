@@ -1,9 +1,9 @@
 use std::path::Path;
-use std::time::Duration;
 
 use rusqlite::{Connection, OptionalExtension, params};
 
 use crate::error::IndexError;
+use crate::settings::IndexLimits;
 use crate::unit::CodeUnit;
 
 /// A unit together with its row id in the index and the fingerprint of the text the retriever embeds.
@@ -60,7 +60,6 @@ impl IndexStore {
         PRAGMA shared.journal_mode = WAL;
         CREATE TABLE IF NOT EXISTS shared.vectors (
             model TEXT NOT NULL, content TEXT NOT NULL, vector BLOB NOT NULL, PRIMARY KEY (model, content));";
-    const BUSY_TIMEOUT: Duration = Duration::from_secs(30);
 
     /// Opens a project index and attaches the shared vector cache.
     pub fn open(project: &Path, vectors: &Path) -> Result<Self, IndexError> {
@@ -73,7 +72,7 @@ impl IndexStore {
             }
         }
         let connection = Connection::open(project)?;
-        connection.busy_timeout(Self::BUSY_TIMEOUT)?;
+        connection.busy_timeout(IndexLimits::BUSY_TIMEOUT)?;
         connection.execute_batch(Self::PROJECT_SCHEMA)?;
         connection.execute("ATTACH DATABASE ?1 AS shared", [vectors.to_string_lossy()])?;
         connection.execute_batch(Self::VECTOR_SCHEMA)?;

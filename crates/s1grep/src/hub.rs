@@ -3,9 +3,10 @@ use std::path::Path;
 use std::time::Duration;
 
 use anyhow::{Context, bail};
+use indicatif::{ProgressBar, ProgressStyle};
 use sha2::{Digest, Sha256};
 
-use crate::settings::{ModelFile, ModelRelease, ModelSettings};
+use crate::settings::{DisplaySettings, ModelFile, ModelRelease, ModelSettings};
 
 /// Why one download attempt failed: worth retrying or not.
 enum Failure {
@@ -110,7 +111,7 @@ impl ModelInstaller {
             Ok(response) => response,
             Err(error) => {
                 return Err(Failure::Retry(
-                    Duration::from_secs(5),
+                    ModelSettings::WAIT_AFTER_NETWORK_ERROR,
                     format!("network error: {error}"),
                 ));
             }
@@ -129,7 +130,7 @@ impl ModelInstaller {
                     .get("retry-after")
                     .and_then(|value| value.to_str().ok())
                     .and_then(|value| value.trim().parse::<u64>().ok())
-                    .map_or(Duration::from_secs(20), Duration::from_secs)
+                    .map_or(ModelSettings::WAIT_WHEN_BUSY, Duration::from_secs)
                     .min(ModelSettings::DOWNLOAD_MAXIMUM_WAIT);
                 return Err(Failure::Retry(
                     wait,
@@ -138,7 +139,7 @@ impl ModelInstaller {
             }
             status if status >= 500 => {
                 return Err(Failure::Retry(
-                    Duration::from_secs(10),
+                    ModelSettings::WAIT_AFTER_SERVER_ERROR,
                     format!("Hugging Face failed for a moment ({status})"),
                 ));
             }
@@ -164,14 +165,22 @@ impl ModelInstaller {
         let mut hasher = Sha256::new();
         let mut buffer = vec![0_u8; 1 << 20];
         let mut written = 0_u64;
-        let mut last_percent = u64::MAX;
+        let bar = ProgressBar::new(file.size).with_message(Self::name(file).to_string());
+        bar.set_style(
+            ProgressStyle::with_template(DisplaySettings::DOWNLOAD_TEMPLATE)
+                .expect("valid template")
+                .progress_chars(DisplaySettings::BAR_CHARACTERS),
+        );
+        if file.size < ModelSettings::DOWNLOAD_PROGRESS_FROM {
+            bar.set_draw_target(indicatif::ProgressDrawTarget::hidden());
+        }
         loop {
             let read = match reader.read(&mut buffer) {
                 Ok(0) => break,
                 Ok(read) => read,
                 Err(error) => {
                     return Err(Failure::Retry(
-                        Duration::from_secs(5),
+                        ModelSettings::WAIT_AFTER_NETWORK_ERROR,
                         format!("download interrupted: {error}"),
                     ));
                 }
@@ -179,16 +188,13 @@ impl ModelInstaller {
             output.write_all(&buffer[..read]).map_err(fatal)?;
             hasher.update(&buffer[..read]);
             written += read as u64;
-            let percent = written * 100 / file.size.max(1);
-            if file.size > ModelSettings::DOWNLOAD_PROGRESS_FROM && percent != last_percent && percent % 10 == 0 {
-                eprintln!("  {} {percent:>3} %", Self::name(file));
-                last_percent = percent;
-            }
+            bar.set_position(written);
         }
+        bar.finish_and_clear();
         output.flush().map_err(fatal)?;
         if written != file.size {
             return Err(Failure::Retry(
-                Duration::from_secs(5),
+                ModelSettings::WAIT_AFTER_NETWORK_ERROR,
                 format!("{} arrived with {written} of {} bytes", Self::name(file), file.size),
             ));
         }

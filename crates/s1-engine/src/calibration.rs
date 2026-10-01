@@ -1,3 +1,4 @@
+use crate::settings::CalibrationLimits;
 use std::collections::HashMap;
 
 use serde_json::Value;
@@ -14,9 +15,6 @@ pub struct Temperatures {
 }
 
 impl Temperatures {
-    const MINIMUM: f64 = 0.5;
-    const MAXIMUM: f64 = 5.0;
-
     pub fn from_config(config: &DecisionConfig) -> Self {
         let mut by_kind = [1.0; 3];
         for (slot, value) in by_kind.iter_mut().zip(&config.temperature) {
@@ -54,7 +52,10 @@ impl Temperatures {
             _ => None,
         };
         match number {
-            Some(number) if number.is_finite() => number.clamp(Self::MINIMUM, Self::MAXIMUM),
+            Some(number) if number.is_finite() => number.clamp(
+                CalibrationLimits::MINIMUM_TEMPERATURE,
+                CalibrationLimits::MAXIMUM_TEMPERATURE,
+            ),
             _ => 1.0,
         }
     }

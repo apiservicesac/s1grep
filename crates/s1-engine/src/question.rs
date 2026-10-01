@@ -1,3 +1,4 @@
+use crate::settings::NoulDefaults;
 use serde_json::{Map, Value};
 
 use crate::error::EngineError;
@@ -54,9 +55,6 @@ pub struct Question {
 }
 
 impl Question {
-    const NOUL_FALSE_DEFAULT: &'static str = "no, the statement does not hold";
-    const NOUL_TRUE_DEFAULT: &'static str = "yes, the statement holds";
-
     pub fn noul(instructions: impl Into<String>) -> Self {
         Self::from_json(
             "noul",
@@ -184,8 +182,8 @@ impl Question {
             }
         };
         Ok(vec![
-            render(&false_label, "false", Self::NOUL_FALSE_DEFAULT),
-            render(&true_label, "true", Self::NOUL_TRUE_DEFAULT),
+            render(&false_label, "false", NoulDefaults::FALSE),
+            render(&true_label, "true", NoulDefaults::TRUE),
         ])
     }
 

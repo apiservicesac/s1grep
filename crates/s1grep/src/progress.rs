@@ -1,8 +1,8 @@
-use std::io::{IsTerminal, Write};
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::io::IsTerminal;
 use std::time::Instant;
 
+use console::style;
+use indicatif::{ProgressBar, ProgressStyle};
 use serde::{Deserialize, Serialize};
 
 use crate::settings::DisplaySettings;
@@ -29,7 +29,7 @@ pub enum IndexEvent {
     Busy { pid: Option<u32> },
 }
 
-/// Formats numbers and durations the way the progress line shows them.
+/// Formats numbers and durations the way the summaries show them.
 pub struct Units;
 
 impl Units {
@@ -54,82 +54,38 @@ impl Units {
     }
 }
 
-/// Draws index events on stderr: a live bar on a terminal, a line every few seconds otherwise.
+/// Which animation is on screen, so that consecutive events update it instead of replacing it.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Animation {
+    Spinner,
+    Reading,
+    Indexing,
+}
+
+/// The animations on stderr, drawn by indicatif: a spinner while the models load, bars while files are read and
+/// functions indexed. When stderr is not a terminal nothing is animated and a plain line is printed now and then.
 pub struct ProgressDisplay {
     terminal: bool,
-    color: bool,
-    last_line: Option<Instant>,
-    drawn: bool,
-    spinner: Option<Spinner>,
-}
-
-/// An animated line for waits whose length is unknown, drawn from its own thread while the caller is blocked.
-struct Spinner {
-    running: Arc<AtomicBool>,
-    thread: std::thread::JoinHandle<()>,
-}
-
-impl Spinner {
-    const FRAMES: [&'static str; 10] = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
-
-    fn start(message: String, hint: String, color: bool) -> Self {
-        let running = Arc::new(AtomicBool::new(true));
-        let flag = Arc::clone(&running);
-        let thread = std::thread::spawn(move || {
-            let started = Instant::now();
-            let mut frame = 0;
-            while flag.load(Ordering::Relaxed) {
-                let symbol = Self::FRAMES[frame % Self::FRAMES.len()];
-                let elapsed = format!("{} s", started.elapsed().as_secs());
-                if color {
-                    eprint!("\r\x1b[2K\x1b[36m{symbol}\x1b[0m {message} \x1b[2m· {hint} · {elapsed}\x1b[0m");
-                } else {
-                    eprint!("\r\x1b[2K{symbol} {message} · {hint} · {elapsed}");
-                }
-                let _ = std::io::stderr().flush();
-                frame += 1;
-                std::thread::sleep(DisplaySettings::SPINNER_INTERVAL);
-            }
-            eprint!("\r\x1b[2K");
-            let _ = std::io::stderr().flush();
-        });
-        Self { running, thread }
-    }
-
-    fn stop(self) {
-        self.running.store(false, Ordering::Relaxed);
-        let _ = self.thread.join();
-    }
+    current: Option<(Animation, ProgressBar)>,
+    last_plain_line: Option<Instant>,
 }
 
 impl ProgressDisplay {
     pub fn new() -> Self {
-        let terminal = std::io::stderr().is_terminal();
         Self {
-            terminal,
-            color: terminal && std::env::var_os("NO_COLOR").is_none(),
-            last_line: None,
-            drawn: false,
-            spinner: None,
+            terminal: std::io::stderr().is_terminal(),
+            current: None,
+            last_plain_line: None,
         }
     }
 
     pub fn show(&mut self, event: &IndexEvent) {
-        self.stop_spinner();
         match event {
-            IndexEvent::LoadingModels => {
-                self.wait("Loading the models", "about 10 s");
-                return;
-            }
-            IndexEvent::StartingServer => {
-                self.wait("Loading the models", "only once, about 10 s");
-                return;
-            }
+            IndexEvent::LoadingModels => self.spinner("Loading the models · about 10 s"),
+            IndexEvent::StartingServer => self.spinner("Loading the models · only once, about 10 s"),
             IndexEvent::Scanning { done, files } => {
-                self.live(
-                    &format!("Reading files {} / {}", Units::count(*done), Units::count(*files)),
-                    false,
-                );
+                self.bar(Animation::Reading, *files, *done, "");
+                self.plain(&format!("Reading files {done}/{files}"), false);
             }
             IndexEvent::Scanned {
                 files,
@@ -150,26 +106,25 @@ impl ProgressDisplay {
             }
             IndexEvent::Embedding { done, total, seconds } => {
                 let rate = if *seconds > 0.5 { *done as f64 / seconds } else { 0.0 };
-                let remaining = if rate > 0.0 {
-                    format!(" · ~{} left", Units::duration((total - done) as f64 / rate))
+                let left = if rate > 0.0 && done < total {
+                    format!(
+                        "· {rate:.1}/s · ~{} left",
+                        Units::duration((total - done) as f64 / rate)
+                    )
                 } else {
                     String::new()
                 };
-                let speed = if rate > 0.0 {
-                    format!(" · {rate:.0}/s")
-                } else {
-                    String::new()
-                };
-                let text = format!(
-                    "Indexing {} {} / {} functions{speed}{remaining}",
-                    self.bar(*done, *total),
-                    Units::count(*done),
-                    Units::count(*total)
+                self.bar(Animation::Indexing, *total, *done, &left);
+                self.plain(
+                    &format!(
+                        "Indexing {}/{} functions {left}",
+                        Units::count(*done),
+                        Units::count(*total)
+                    ),
+                    done == total,
                 );
-                self.live(&text, done == total);
             }
             IndexEvent::Busy { pid } => {
-                self.clear();
                 let holder = pid.map(|pid| format!(" (process {pid})")).unwrap_or_default();
                 self.line(&self.warn(&format!(
                     "Another s1grep is indexing this project{holder}; searching what is already indexed."
@@ -178,28 +133,10 @@ impl ProgressDisplay {
         }
     }
 
-    /// Removes the live line so that results print cleanly.
+    /// Removes the animation so that results print cleanly.
     pub fn clear(&mut self) {
-        self.stop_spinner();
-        if self.terminal && self.drawn {
-            eprint!("\r\x1b[2K");
-            let _ = std::io::stderr().flush();
-            self.drawn = false;
-        }
-    }
-
-    /// An animated wait on a terminal; a single line otherwise.
-    fn wait(&mut self, message: &str, hint: &str) {
-        if self.terminal {
-            self.spinner = Some(Spinner::start(message.to_string(), hint.to_string(), self.color));
-        } else {
-            eprintln!("{message} ({hint})…");
-        }
-    }
-
-    fn stop_spinner(&mut self) {
-        if let Some(spinner) = self.spinner.take() {
-            spinner.stop();
+        if let Some((_, bar)) = self.current.take() {
+            bar.finish_and_clear();
         }
     }
 
@@ -209,77 +146,81 @@ impl ProgressDisplay {
     }
 
     pub fn dim(&self, text: &str) -> String {
-        self.paint(text, "2")
+        style(text).for_stderr().dim().to_string()
     }
 
     pub fn warn(&self, text: &str) -> String {
-        self.paint(text, "33")
+        style(text).for_stderr().yellow().to_string()
     }
 
     pub fn good(&self, text: &str) -> String {
-        self.paint(text, "32")
+        style(text).for_stderr().green().to_string()
     }
 
     pub fn accent(&self, text: &str) -> String {
-        self.paint(text, "36")
+        style(text).for_stderr().cyan().to_string()
     }
 
-    fn paint(&self, text: &str, style: &str) -> String {
-        if self.color {
-            format!("\x1b[{style}m{text}\x1b[0m")
-        } else {
-            text.to_string()
+    /// A spinner for waits of unknown length; it keeps turning on its own while the caller is blocked.
+    fn spinner(&mut self, message: &str) {
+        self.clear();
+        if !self.terminal {
+            eprintln!("{message}…");
+            return;
+        }
+        let spinner = ProgressBar::new_spinner().with_message(message.to_string());
+        spinner.set_style(ProgressStyle::with_template(DisplaySettings::SPINNER_TEMPLATE).expect("valid template"));
+        spinner.enable_steady_tick(DisplaySettings::SPINNER_INTERVAL);
+        self.current = Some((Animation::Spinner, spinner));
+    }
+
+    /// Moves the bar of this kind, creating it in place of whatever was shown.
+    fn bar(&mut self, animation: Animation, length: usize, position: usize, message: &str) {
+        if !self.terminal {
+            return;
+        }
+        if !matches!(&self.current, Some((current, _)) if *current == animation) {
+            self.clear();
+            let template = if animation == Animation::Reading {
+                DisplaySettings::READING_TEMPLATE
+            } else {
+                DisplaySettings::INDEXING_TEMPLATE
+            };
+            let bar = ProgressBar::new(length as u64);
+            bar.set_style(
+                ProgressStyle::with_template(template)
+                    .expect("valid template")
+                    .progress_chars(DisplaySettings::BAR_CHARACTERS),
+            );
+            bar.enable_steady_tick(DisplaySettings::SPINNER_INTERVAL);
+            self.current = Some((animation, bar));
+        }
+        if let Some((_, bar)) = &self.current {
+            bar.set_length(length as u64);
+            bar.set_position(position as u64);
+            bar.set_message(message.to_string());
         }
     }
 
-    fn bar(&self, done: usize, total: usize) -> String {
-        let filled = if total == 0 {
-            DisplaySettings::PROGRESS_BAR_WIDTH
-        } else {
-            done * DisplaySettings::PROGRESS_BAR_WIDTH / total
-        };
-        let bar = format!(
-            "{}{}",
-            "━".repeat(filled),
-            " ".repeat(DisplaySettings::PROGRESS_BAR_WIDTH - filled)
-        );
-        if self.color {
-            format!(
-                "\x1b[36m{}\x1b[0m\x1b[2m{}\x1b[0m",
-                "━".repeat(filled),
-                "━".repeat(DisplaySettings::PROGRESS_BAR_WIDTH - filled)
-            )
-        } else {
-            format!("[{bar}]")
-        }
-    }
-
-    fn live(&mut self, text: &str, finished: bool) {
-        let now = Instant::now();
+    /// A line every few seconds when nothing can be animated (output redirected to a file or another program).
+    fn plain(&mut self, text: &str, finished: bool) {
         if self.terminal {
-            if finished
-                || self
-                    .last_line
-                    .is_none_or(|last| now - last >= DisplaySettings::LIVE_INTERVAL)
-            {
-                eprint!("\r\x1b[2K{text}");
-                let _ = std::io::stderr().flush();
-                self.drawn = true;
-                self.last_line = Some(now);
-            }
-        } else if finished
+            return;
+        }
+        let now = Instant::now();
+        if finished
             || self
-                .last_line
+                .last_plain_line
                 .is_none_or(|last| now - last >= DisplaySettings::PLAIN_INTERVAL)
         {
             eprintln!("{text}");
-            self.last_line = Some(now);
+            self.last_plain_line = Some(now);
         }
     }
 }
 
 impl Drop for ProgressDisplay {
     fn drop(&mut self) {
-        self.stop_spinner();
+        self.clear();
     }
 }

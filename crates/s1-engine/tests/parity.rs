@@ -44,7 +44,7 @@ impl ParityHarness {
         let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let model_directory = manifest.join("../../models").join(name);
         let fixture_path = manifest.join("tests/fixtures").join(format!("{name}.json"));
-        if !model_directory.join(ModelBundle::GRAPH_FILE).is_file() || !fixture_path.is_file() {
+        if !model_directory.join(s1_engine::BundleFiles::GRAPH).is_file() || !fixture_path.is_file() {
             eprintln!("skipping parity for {name}: no bundle or fixture");
             return None;
         }

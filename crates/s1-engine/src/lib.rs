@@ -12,6 +12,7 @@ mod python_json;
 mod question;
 mod sequence;
 mod session;
+mod settings;
 mod tokenizer;
 
 pub use accelerator::Accelerator;
@@ -24,4 +25,5 @@ pub use error::EngineError;
 pub use python_json::PythonJson;
 pub use question::{AnswerOption, Question, QuestionKind, QuestionSet};
 pub use sequence::{EncodedQuestion, SequenceBuilder};
+pub use settings::{BundleFiles, CalibrationLimits, EmbedderSettings, NoulDefaults, SequenceLimits};
 pub use tokenizer::LayaTokenizer;

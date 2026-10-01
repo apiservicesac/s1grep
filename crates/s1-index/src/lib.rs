@@ -3,6 +3,7 @@
 mod error;
 mod extractor;
 mod ranking;
+mod settings;
 mod store;
 mod unit;
 mod walker;
@@ -10,6 +11,7 @@ mod walker;
 pub use error::IndexError;
 pub use extractor::PythonExtractor;
 pub use ranking::{FusionWeights, RankFusion, VectorRanking};
+pub use settings::IndexLimits;
 pub use store::{Coverage, FileState, IndexStore, StoredUnit};
 pub use unit::CodeUnit;
 pub use walker::{SourceFile, SourceWalker, WalkOptions};

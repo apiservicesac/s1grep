@@ -13,12 +13,12 @@ pub struct ModelLocator {
 }
 
 impl ModelLocator {
-    const DEFAULT_MODEL: &'static str = "laya-multilingual";
-
     pub fn open(&self) -> anyhow::Result<ModelBundle> {
         let directory = match &self.directory {
             Some(directory) => directory.clone(),
-            None => Self::cache_directory()?.join("models").join(Self::DEFAULT_MODEL),
+            None => Self::cache_directory()?
+                .join("models")
+                .join(crate::settings::BenchSettings::MODEL),
         };
         if !directory.is_dir() {
             bail!(

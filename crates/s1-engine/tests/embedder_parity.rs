@@ -22,7 +22,7 @@ fn vectors_match_sentence_transformers() {
     for name in BUNDLES {
         let directory = manifest.join("../../models").join(name);
         let fixture_path = manifest.join("tests/fixtures").join(format!("{name}.json"));
-        if !directory.join(EmbedderBundle::GRAPH_FILE).is_file() || !fixture_path.is_file() {
+        if !directory.join(s1_engine::BundleFiles::GRAPH).is_file() || !fixture_path.is_file() {
             eprintln!("skipping embedder parity for {name}: no bundle or fixture");
             continue;
         }

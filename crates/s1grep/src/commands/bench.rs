@@ -5,6 +5,7 @@ use s1_engine::{Accelerator, EngineOptions, LayaEngine, ModelBundle, Question, Q
 use serde_json::{Value, json};
 
 use crate::model_locator::ModelLocator;
+use crate::settings::BenchSettings;
 
 #[derive(Args)]
 pub struct BenchCommand {
@@ -35,9 +36,6 @@ struct Measurement {
 }
 
 impl BenchCommand {
-    const BATCH_SIZE: usize = 8;
-    const BATCH_LENGTH: usize = 128;
-
     pub fn run(self) -> anyhow::Result<()> {
         let bundle = self.model.open()?;
         let thread_counts = if self.threads.is_empty() {
@@ -60,7 +58,7 @@ impl BenchCommand {
         for threads in thread_counts {
             let mut engine = self.load(&bundle, threads)?;
             let mut cases: Vec<(usize, usize)> = self.lengths.iter().map(|length| (1, *length)).collect();
-            cases.push((Self::BATCH_SIZE, Self::BATCH_LENGTH));
+            cases.push((BenchSettings::BATCH_SIZE, BenchSettings::BATCH_TOKENS));
             for (batch, length) in cases {
                 let measurement = self.measure(&mut engine, threads, batch, length)?;
                 if !self.json {

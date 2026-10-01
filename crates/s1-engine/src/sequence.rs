@@ -1,5 +1,6 @@
 use crate::error::EngineError;
 use crate::question::Question;
+use crate::settings::SequenceLimits;
 use crate::tokenizer::LayaTokenizer;
 
 /// Token ids for one (state, question) pair and the positions of its option markers.
@@ -18,11 +19,6 @@ pub struct SequenceBuilder {
 }
 
 impl SequenceBuilder {
-    const OPTION_TOKEN_LIMIT: usize = 48;
-    const MINIMUM_HEAD_BUDGET: usize = 16;
-    const MINIMUM_OPTION_TOKENS: usize = 4;
-    const MINIMUM_INSTRUCTION_TOKENS: usize = 8;
-
     /// `state_ids` is the tokenized state, shared by every question asked about it.
     /// `truncate_left` keeps the end of a long state (Laya does this for JSON arrays such as chats).
     pub fn build(
@@ -42,7 +38,7 @@ impl SequenceBuilder {
         let mut option_ids = Vec::with_capacity(question.options.len());
         for option in &question.options {
             let mut tokens = tokenizer.encode(&format!(" {}", tokenizer.neutralize(&option.text)))?;
-            tokens.truncate(Self::OPTION_TOKEN_LIMIT);
+            tokens.truncate(SequenceLimits::OPTION_TOKENS);
             let mut marked = Vec::with_capacity(tokens.len() + 1);
             marked.push(tokenizer.mask_id);
             marked.extend(tokens);
@@ -50,15 +46,15 @@ impl SequenceBuilder {
         }
         let options_length = |options: &[Vec<u32>]| options.iter().map(Vec::len).sum::<usize>();
         let mut option_budget = self.head_max_len as isize - options_length(&option_ids) as isize;
-        if option_budget < Self::MINIMUM_HEAD_BUDGET as isize {
-            let per_option = Self::MINIMUM_OPTION_TOKENS
-                .max(self.head_max_len.saturating_sub(Self::MINIMUM_HEAD_BUDGET) / option_ids.len().max(1));
+        if option_budget < SequenceLimits::MINIMUM_HEAD_BUDGET as isize {
+            let per_option = SequenceLimits::MINIMUM_OPTION_TOKENS
+                .max(self.head_max_len.saturating_sub(SequenceLimits::MINIMUM_HEAD_BUDGET) / option_ids.len().max(1));
             for option in &mut option_ids {
                 option.truncate(per_option);
             }
             option_budget = self.head_max_len as isize - options_length(&option_ids) as isize;
         }
-        head_ids.truncate((Self::MINIMUM_INSTRUCTION_TOKENS as isize).max(option_budget) as usize);
+        head_ids.truncate((SequenceLimits::MINIMUM_INSTRUCTION_TOKENS as isize).max(option_budget) as usize);
 
         let mut input_ids = Vec::with_capacity(self.max_len);
         input_ids.push(tokenizer.cls_id);

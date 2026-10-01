@@ -1,3 +1,4 @@
+use crate::settings::BundleFiles;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -37,25 +38,20 @@ pub struct ModelBundle {
 }
 
 impl ModelBundle {
-    pub const GRAPH_FILE: &'static str = "model.onnx";
-    pub const TOKENIZER_FILE: &'static str = "tokenizer.json";
-    pub const TOKENIZER_CONFIG_FILE: &'static str = "tokenizer_config.json";
-    pub const DECISION_CONFIG_FILE: &'static str = "decision_config.json";
-
     pub fn open(directory: impl Into<PathBuf>) -> Result<Self, EngineError> {
         let directory = directory.into();
         for file in [
-            Self::GRAPH_FILE,
-            Self::TOKENIZER_FILE,
-            Self::TOKENIZER_CONFIG_FILE,
-            Self::DECISION_CONFIG_FILE,
+            BundleFiles::GRAPH,
+            BundleFiles::TOKENIZER,
+            BundleFiles::TOKENIZER_CONFIG,
+            BundleFiles::DECISION_CONFIG,
         ] {
             let path = directory.join(file);
             if !path.is_file() {
                 return Err(EngineError::MissingFile(path));
             }
         }
-        let config_path = directory.join(Self::DECISION_CONFIG_FILE);
+        let config_path = directory.join(BundleFiles::DECISION_CONFIG);
         let text = std::fs::read_to_string(&config_path).map_err(|source| EngineError::Io {
             path: config_path.clone(),
             source,
@@ -72,15 +68,15 @@ impl ModelBundle {
     }
 
     pub fn graph_path(&self) -> PathBuf {
-        self.file(Self::GRAPH_FILE)
+        self.file(BundleFiles::GRAPH)
     }
 
     pub fn tokenizer_path(&self) -> PathBuf {
-        self.file(Self::TOKENIZER_FILE)
+        self.file(BundleFiles::TOKENIZER)
     }
 
     pub fn tokenizer_config_path(&self) -> PathBuf {
-        self.file(Self::TOKENIZER_CONFIG_FILE)
+        self.file(BundleFiles::TOKENIZER_CONFIG)
     }
 
     pub fn directory(&self) -> &Path {

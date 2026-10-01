@@ -1,3 +1,4 @@
+use crate::settings::IndexLimits;
 use tree_sitter::{Node, Parser};
 
 use crate::error::IndexError;
@@ -10,8 +11,6 @@ pub struct PythonExtractor {
 }
 
 impl PythonExtractor {
-    const MINIMUM_LINES: usize = 3;
-
     pub fn new() -> Result<Self, IndexError> {
         let mut parser = Parser::new();
         parser
@@ -66,7 +65,7 @@ impl PythonExtractor {
             return;
         };
         let text = &source[function.start_byte()..function.end_byte()];
-        if text.lines().count() < Self::MINIMUM_LINES {
+        if text.lines().count() < IndexLimits::MINIMUM_LINES {
             return;
         }
         let name = match class {

@@ -1,4 +1,6 @@
 use std::fmt::Write;
+
+use console::Style;
 use std::path::Path;
 
 use crate::service::SearchResponse;
@@ -31,10 +33,10 @@ impl TextReport<'_> {
             let _ = writeln!(
                 text,
                 "{} {}  {}  {}",
-                self.paint(&format!("{:>2}.", result.rank), "2"),
-                self.paint(&location, "1;36"),
-                self.paint(&result.name, "1"),
-                self.paint(&score, "2")
+                self.styled(&format!("{:>2}.", result.rank), Style::new().dim()),
+                self.styled(&location, Style::new().bold().cyan()),
+                self.styled(&result.name, Style::new().bold()),
+                self.styled(&score, Style::new().dim())
             );
             let lines = Self::dedented(&result.source);
             for line in lines.iter().take(self.preview_lines) {
@@ -44,7 +46,10 @@ impl TextReport<'_> {
                 let _ = writeln!(
                     text,
                     "    {}",
-                    self.paint(&format!("… {} more lines", lines.len() - self.preview_lines), "2")
+                    self.styled(
+                        &format!("… {} more lines", lines.len() - self.preview_lines),
+                        Style::new().dim()
+                    )
                 );
             }
             text.push('\n');
@@ -89,11 +94,8 @@ impl TextReport<'_> {
         }
     }
 
-    fn paint(&self, text: &str, style: &str) -> String {
-        if self.color {
-            format!("\x1b[{style}m{text}\x1b[0m")
-        } else {
-            text.to_string()
-        }
+    /// Styles for the terminal; `color` is false for agents and when output is redirected.
+    fn styled(&self, text: &str, style: Style) -> String {
+        style.force_styling(self.color).apply_to(text).to_string()
     }
 }

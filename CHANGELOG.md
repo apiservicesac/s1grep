@@ -2,6 +2,16 @@
 
 All notable changes to `s1grep` are documented here. Versions follow [Semantic Versioning](https://semver.org).
 
+## [0.2.3] — 2026-10-01
+
+### Changed
+- Animations are drawn with indicatif: a spinner while the models load, bars while files are read, functions are
+  indexed (with speed and time left) and models are downloaded (bytes, speed and time left).
+- The background process starts in its own session, detached from the terminal: closing the terminal that started it
+  no longer stops it.
+- Every tunable value lives in one settings module per crate (`s1grep`, `s1-index`, `s1-engine`); colours use the
+  console crate.
+
 ## [0.2.2] — 2026-10-01
 
 ### Added

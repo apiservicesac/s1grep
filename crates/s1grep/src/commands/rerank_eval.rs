@@ -27,7 +27,7 @@ impl RankedQuestion {
             Some((header, source)) => {
                 let cut: String = source
                     .chars()
-                    .take(s1_index::CodeUnit::JUDGE_SOURCE_CHARACTERS)
+                    .take(s1_index::IndexLimits::JUDGE_SOURCE_CHARACTERS)
                     .collect();
                 format!("{header}\n\n{cut}")
             }
