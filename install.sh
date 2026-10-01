@@ -132,23 +132,23 @@ install_binary() {
     step "Installing s1grep ${VERSION}"
     local base="https://github.com/${REPOSITORY}/releases/download/${VERSION}"
     local file="s1grep-${VERSION}-x86_64-linux"
-    local work
-    work="$(mktemp -d)"
-    trap 'rm -rf "${work}"' EXIT
+    # Global, not local: the EXIT trap runs after this function has returned.
+    WORK="$(mktemp -d)"
+    trap 'rm -rf "${WORK:-}"' EXIT
 
     info "Downloading ${file}..."
-    curl -fsSL --retry 3 "${base}/${file}" -o "${work}/${file}" || error "Could not download ${base}/${file}"
-    curl -fsSL --retry 3 "${base}/SHA256SUMS" -o "${work}/SHA256SUMS" || error "Could not download SHA256SUMS"
-    (cd "${work}" && grep " ${file}\$" SHA256SUMS | sha256sum -c --quiet -) \
+    curl -fsSL --retry 3 "${base}/${file}" -o "${WORK}/${file}" || error "Could not download ${base}/${file}"
+    curl -fsSL --retry 3 "${base}/SHA256SUMS" -o "${WORK}/SHA256SUMS" || error "Could not download SHA256SUMS"
+    (cd "${WORK}" && grep " ${file}\$" SHA256SUMS | sha256sum -c --quiet -) \
         || error "The download does not match SHA256SUMS: it arrived incomplete or changed. Try again."
 
     # Prove it runs before it replaces anything.
-    chmod +x "${work}/${file}"
-    "${work}/${file}" --version >/dev/null 2>&1 || error "The downloaded binary does not run on this machine."
+    chmod +x "${WORK}/${file}"
+    "${WORK}/${file}" --version >/dev/null 2>&1 || error "The downloaded binary does not run on this machine."
 
     mkdir -p "${INSTALL_DIR}"
     [ -x "${TARGET}" ] && "${TARGET}" stop >/dev/null 2>&1 || true
-    install -m 755 "${work}/${file}" "${TARGET}"
+    install -m 755 "${WORK}/${file}" "${TARGET}"
     success "Installed $("${TARGET}" --version) in ${TARGET}"
 }
 
@@ -163,14 +163,12 @@ check_path() {
 # ══════════════════════════════════════════════════════════════════════════════
 # 3 — Models
 # ══════════════════════════════════════════════════════════════════════════════
+# `s1grep setup` ends by printing the next steps itself; they are printed here only when it did not run.
+MODELS_READY=false
 install_models() {
     step "Models"
-    if ! ${MODELS}; then
-        info "Skipped. Run \`s1grep setup\` before the first search."
-        return
-    fi
-    if ask_yes "Download the models now (about 2.4 GB, once)?"; then
-        "${TARGET}" setup
+    if ${MODELS} && ask_yes "Download the models now (about 2.4 GB, once)?"; then
+        "${TARGET}" setup && MODELS_READY=true
     else
         info "Run \`s1grep setup\` before the first search."
     fi
@@ -187,8 +185,10 @@ install_binary
 check_path
 install_models
 
-step "Ready"
-echo "  s1grep \"where do we retry a failed payment\" path/to/repo"
-echo "  s1grep status            what is loaded and indexed"
-echo "  s1grep skill --install   teach Claude Code to use it"
-echo
+if ! ${MODELS_READY}; then
+    step "Ready"
+    echo "  s1grep setup             download the models (about 2.4 GB, once)"
+    echo "  s1grep \"where do we retry a failed payment\" path/to/repo"
+    echo "  s1grep skill --install   teach Claude Code to use it"
+    echo
+fi
