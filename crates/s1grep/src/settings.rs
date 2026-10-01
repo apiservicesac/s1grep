@@ -33,9 +33,6 @@ impl IndexSettings {
     pub const FOLDER_IGNORE_FILE: &'static str = ".s1grepignore";
     /// Source files read; the extractor understands Python only for now.
     pub const EXTENSIONS: [&'static str; 1] = ["py"];
-    /// Said when a folder has no functions, because the usual reason is a repository in another language.
-    pub const LANGUAGE_NOTE: &'static str =
-        "s1grep reads Python files only for now; other languages are skipped (planned for 0.4).";
     /// Larger files are generated code or data.
     pub const MAXIMUM_FILE_BYTES: u64 = 1_000_000;
     /// Functions embedded per step: small enough to report progress often.

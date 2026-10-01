@@ -11,10 +11,6 @@ $ cd ~/work/shop && s1grep "where do we retry a failed payment"
     … 6 more lines
 ```
 
-> **Python only, for now.** s1grep reads `.py` files and skips everything else, so a JavaScript, TypeScript, Go or
-> Java repository returns no results. Its judge model was trained on Python code; how it does on other languages is
-> measured under [Languages](#languages), and support for more languages is planned for 0.4.
-
 Status: early (0.2). Linux (x86-64, glibc 2.38 or newer: Ubuntu 24.04, Debian 13) and Windows (x86-64).
 
 ## Install
@@ -71,11 +67,9 @@ times against 145 for the embeddings alone, with a median search of 1.5 s on an 
 
 ### Languages
 
-Today s1grep indexes **Python only**, and the judge, s1-code v3, was **trained on Python only**. The embedding model
-is not language specific, so other languages are a matter of extraction and of a judge trained on them.
-
-To see how far the Python-trained judge carries over, it was measured on 100 CodeSearchNet queries per language (25
-embedding candidates from the same repository, the judge reads 10). Top-1 out of 100:
+s1grep extracts functions from Python files today; more languages are being added. The embedding model is not language
+specific, and the judge, s1-code v3, was trained on Python. Measured on 100 CodeSearchNet queries per language (25
+embedding candidates from the same repository, the judge reads 10), top-1 out of 100:
 
 | Language | Embeddings alone | With the judge | Effect of the judge |
 |---|---|---|---|
@@ -86,8 +80,7 @@ embedding candidates from the same repository, the judge reads 10). Top-1 out of
 | JavaScript | 67 | 59 | hurts |
 | Go | 47 | 41 | hurts |
 
-With 100 queries each difference carries about ±9 points. When other languages are indexed (planned for 0.4), the judge
-will be switched off for languages where it hurts until a judge trained on several languages (s1-code v4) replaces it.
+With 100 queries each difference carries about ±9 points. A judge trained on several languages (s1-code v4) is planned.
 
 ## Usage
 

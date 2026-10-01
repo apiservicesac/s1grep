@@ -15,7 +15,7 @@ use s1grep::runtime_library::RuntimeLibrary;
 #[command(
     name = "s1grep",
     version,
-    about = "Find code by asking what it does, in English or Spanish. Everything runs on your machine.\nReads Python repositories only, for now.",
+    about = "Find code by asking what it does, in English or Spanish. Everything runs on your machine.",
     override_usage = "s1grep \"<what the code does>\" [PATH] [OPTIONS]\n       s1grep <COMMAND>",
     after_help = "Examples:\n  s1grep setup\n  s1grep \"where do we retry a failed payment\" ~/work/shop\n  s1grep \"dónde se valida el token\" . -n 10 --json",
     args_conflicts_with_subcommands = true,

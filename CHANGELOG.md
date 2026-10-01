@@ -7,8 +7,7 @@ All notable changes to `s1grep` are documented here. Versions follow [Semantic V
 ### Added
 - `ARCHITECTURE.md`, architecture decision records in `docs/decisions/`, `docs/quality.md` and `CONTRIBUTING.md`.
 - CI runs clippy (warnings fail) and the unit tests on Windows.
-- "Python only, for now" is stated plainly in the README (with the judge measured on other languages), in `--help`,
-  in the agent skill, and when a folder has no functions to search.
+- The README shows how the judge, trained on Python, does on other languages.
 
 ### Changed
 - The development commands (`eval`, `rerank-eval`, `bench`, `decide`, `units`) moved out of the shipped binary into
