@@ -2,6 +2,17 @@
 
 All notable changes to `s1grep` are documented here. Versions follow [Semantic Versioning](https://semver.org).
 
+## [0.2.2] — 2026-10-01
+
+### Added
+- An animated line while the models load, with the seconds elapsed; plain text when the output is not a terminal.
+
+### Changed
+- `s1grep setup` downloads models pinned to one Hugging Face commit, with the size and SHA-256 of every file built into
+  s1grep: no API calls, and every install gets the same bytes.
+- Downloads wait and retry when Hugging Face is busy (429, honouring Retry-After) or fails for a moment (5xx, network),
+  up to six attempts, saying how long they wait.
+
 ## [0.2.1] — 2026-10-01
 
 ### Fixed

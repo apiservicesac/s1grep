@@ -68,6 +68,25 @@ impl DisplaySettings {
     /// How often a live progress line is redrawn, and how often a plain one is printed when output is redirected.
     pub const LIVE_INTERVAL: Duration = Duration::from_millis(120);
     pub const PLAIN_INTERVAL: Duration = Duration::from_secs(10);
+    /// Frame time of the animation shown while the models load.
+    pub const SPINNER_INTERVAL: Duration = Duration::from_millis(80);
+}
+
+/// One file of a published model, pinned by its size and SHA-256.
+pub struct ModelFile {
+    /// Path inside the Hugging Face repository.
+    pub path: &'static str,
+    pub size: u64,
+    pub sha256: &'static str,
+}
+
+/// A model bundle as published on Hugging Face, pinned to one commit so that every install gets the same bytes.
+pub struct ModelRelease {
+    /// Folder name inside the model directory.
+    pub bundle: &'static str,
+    pub repository: &'static str,
+    pub revision: &'static str,
+    pub files: &'static [ModelFile],
 }
 
 /// Model bundles and where they come from.
@@ -75,13 +94,65 @@ pub struct ModelSettings;
 
 impl ModelSettings {
     pub const JUDGE_BUNDLE: &'static str = "s1-code-v3-onnx";
-    pub const JUDGE_REPOSITORY: &'static str = "api-service-sac/s1-code-v3";
-    pub const JUDGE_FOLDER: &'static str = "onnx";
     pub const RETRIEVER_BUNDLE: &'static str = "granite-278m-onnx";
-    pub const RETRIEVER_REPOSITORY: &'static str = "api-service-sac/granite-embedding-278m-multilingual-onnx";
     pub const HUB: &'static str = "https://huggingface.co";
     /// Downloads larger than this print their progress.
     pub const DOWNLOAD_PROGRESS_FROM: u64 = 50_000_000;
+    /// Attempts per file when Hugging Face is busy (429) or fails for a moment (5xx, network).
+    pub const DOWNLOAD_ATTEMPTS: u32 = 6;
+    pub const DOWNLOAD_MAXIMUM_WAIT: Duration = Duration::from_secs(60);
+
+    pub const RELEASES: [ModelRelease; 2] = [
+        ModelRelease {
+            bundle: Self::JUDGE_BUNDLE,
+            repository: "api-service-sac/s1-code-v3",
+            revision: "9e5cdd6820c068d92a7a446191f1c1647692267a",
+            files: &[
+                ModelFile {
+                    path: "onnx/decision_config.json",
+                    size: 512,
+                    sha256: "8e5a5eab0e290b95ff77bfa921d644e3f763fee2fd95dc021f191c9388882f94",
+                },
+                ModelFile {
+                    path: "onnx/model.onnx",
+                    size: 1_290_355_173,
+                    sha256: "856a3026b23fc9cba051669702f6492b487a831ee58dbd61f0465bb7f2964ceb",
+                },
+                ModelFile {
+                    path: "onnx/tokenizer.json",
+                    size: 34_363_188,
+                    sha256: "609d8f4c067cd3950f88594c5a802616cea245823836ef5848ee4fc40aab5b6f",
+                },
+                ModelFile {
+                    path: "onnx/tokenizer_config.json",
+                    size: 624,
+                    sha256: "f2ff584a8f78ac9f3b6fd0afcf9ab310e41c2d445ef628f9ab4b0d594e992b7a",
+                },
+            ],
+        },
+        ModelRelease {
+            bundle: Self::RETRIEVER_BUNDLE,
+            repository: "api-service-sac/granite-embedding-278m-multilingual-onnx",
+            revision: "b795cbc00b23bcaafbbbba6b242448104cc62ec0",
+            files: &[
+                ModelFile {
+                    path: "embedder_config.json",
+                    size: 218,
+                    sha256: "82c5f97e83ecd0c39faa68019a71ca10580528a5b14161059351587136359f2a",
+                },
+                ModelFile {
+                    path: "model.onnx",
+                    size: 1_111_543_374,
+                    sha256: "ce7cf0e3f9ba39989c0956a8b44987b60f75dc69e6f6ed1a71f3b18188973d89",
+                },
+                ModelFile {
+                    path: "tokenizer.json",
+                    size: 9_081_351,
+                    sha256: "2a0d7366dd7780ea36cc42431dd74cd79289b783ab01acd33013fcc96865a8e9",
+                },
+            ],
+        },
+    ];
 }
 
 /// The MCP server for coding agents.

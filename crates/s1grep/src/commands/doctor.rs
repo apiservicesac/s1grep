@@ -2,11 +2,11 @@ use std::path::PathBuf;
 
 use clap::Args;
 
-use crate::hub::Published;
 use crate::models::{CacheDirectory, ModelDirectory, Retriever};
 use crate::progress::Units;
 use crate::project::Project;
 use crate::server::ServerClient;
+use crate::settings::ModelSettings;
 
 #[derive(Args)]
 pub struct DoctorCommand {
@@ -24,7 +24,7 @@ impl DoctorCommand {
         println!("s1grep {}", env!("CARGO_PKG_VERSION"));
         let root = self.models.resolved()?;
         println!("\nModels  {}", root.display());
-        for published in &Published::ALL {
+        for published in &ModelSettings::RELEASES {
             let present = root.join(published.bundle).join("model.onnx").is_file();
             ready &= present;
             println!("  {}  {}", Self::mark(present), published.bundle);

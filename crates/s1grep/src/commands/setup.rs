@@ -26,6 +26,7 @@ impl SetupCommand {
         eprintln!();
         eprintln!("Next:");
         eprintln!("  s1grep \"where do we retry a failed payment\" path/to/repo   search");
+        eprintln!("  s1grep status                                             what is loaded and indexed");
         eprintln!("  s1grep skill --install                                    teach Claude Code to use s1grep");
         Ok(())
     }

@@ -1,4 +1,6 @@
 use std::io::{IsTerminal, Write};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
 
 use serde::{Deserialize, Serialize};
@@ -58,6 +60,46 @@ pub struct ProgressDisplay {
     color: bool,
     last_line: Option<Instant>,
     drawn: bool,
+    spinner: Option<Spinner>,
+}
+
+/// An animated line for waits whose length is unknown, drawn from its own thread while the caller is blocked.
+struct Spinner {
+    running: Arc<AtomicBool>,
+    thread: std::thread::JoinHandle<()>,
+}
+
+impl Spinner {
+    const FRAMES: [&'static str; 10] = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+
+    fn start(message: String, hint: String, color: bool) -> Self {
+        let running = Arc::new(AtomicBool::new(true));
+        let flag = Arc::clone(&running);
+        let thread = std::thread::spawn(move || {
+            let started = Instant::now();
+            let mut frame = 0;
+            while flag.load(Ordering::Relaxed) {
+                let symbol = Self::FRAMES[frame % Self::FRAMES.len()];
+                let elapsed = format!("{} s", started.elapsed().as_secs());
+                if color {
+                    eprint!("\r\x1b[2K\x1b[36m{symbol}\x1b[0m {message} \x1b[2m· {hint} · {elapsed}\x1b[0m");
+                } else {
+                    eprint!("\r\x1b[2K{symbol} {message} · {hint} · {elapsed}");
+                }
+                let _ = std::io::stderr().flush();
+                frame += 1;
+                std::thread::sleep(DisplaySettings::SPINNER_INTERVAL);
+            }
+            eprint!("\r\x1b[2K");
+            let _ = std::io::stderr().flush();
+        });
+        Self { running, thread }
+    }
+
+    fn stop(self) {
+        self.running.store(false, Ordering::Relaxed);
+        let _ = self.thread.join();
+    }
 }
 
 impl ProgressDisplay {
@@ -68,19 +110,20 @@ impl ProgressDisplay {
             color: terminal && std::env::var_os("NO_COLOR").is_none(),
             last_line: None,
             drawn: false,
+            spinner: None,
         }
     }
 
     pub fn show(&mut self, event: &IndexEvent) {
+        self.stop_spinner();
         match event {
             IndexEvent::LoadingModels => {
-                self.live("Loading the models (about 10 s)…", true);
+                self.wait("Loading the models", "about 10 s");
+                return;
             }
             IndexEvent::StartingServer => {
-                self.live(
-                    "Loading the models once (about 10 s); later searches take about a second…",
-                    true,
-                );
+                self.wait("Loading the models", "only once, about 10 s");
+                return;
             }
             IndexEvent::Scanning { done, files } => {
                 self.live(
@@ -137,10 +180,26 @@ impl ProgressDisplay {
 
     /// Removes the live line so that results print cleanly.
     pub fn clear(&mut self) {
+        self.stop_spinner();
         if self.terminal && self.drawn {
             eprint!("\r\x1b[2K");
             let _ = std::io::stderr().flush();
             self.drawn = false;
+        }
+    }
+
+    /// An animated wait on a terminal; a single line otherwise.
+    fn wait(&mut self, message: &str, hint: &str) {
+        if self.terminal {
+            self.spinner = Some(Spinner::start(message.to_string(), hint.to_string(), self.color));
+        } else {
+            eprintln!("{message} ({hint})…");
+        }
+    }
+
+    fn stop_spinner(&mut self) {
+        if let Some(spinner) = self.spinner.take() {
+            spinner.stop();
         }
     }
 
@@ -216,5 +275,11 @@ impl ProgressDisplay {
             eprintln!("{text}");
             self.last_line = Some(now);
         }
+    }
+}
+
+impl Drop for ProgressDisplay {
+    fn drop(&mut self) {
+        self.stop_spinner();
     }
 }

@@ -5,7 +5,7 @@ use clap::Args;
 
 use crate::commands::search::FilterArgs;
 use crate::models::ModelDirectory;
-use crate::progress::{ProgressDisplay, Units};
+use crate::progress::{IndexEvent, ProgressDisplay, Units};
 use crate::service::SearchService;
 
 #[derive(Args)]
@@ -25,7 +25,7 @@ impl IndexCommand {
     pub fn run(self) -> anyhow::Result<()> {
         let started = Instant::now();
         let mut display = ProgressDisplay::new();
-        display.line(&display.dim("Loading the models…"));
+        display.show(&IndexEvent::LoadingModels);
         let mut service = SearchService::load(&self.models, false, self.threads)?;
         let project = service.index(&self.path, &self.filter.filters(), &mut |event| display.show(&event))?;
         let coverage = project

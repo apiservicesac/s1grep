@@ -1,171 +1,204 @@
 use std::io::{Read, Write};
 use std::path::Path;
+use std::time::Duration;
 
 use anyhow::{Context, bail};
-use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
-use crate::settings::ModelSettings;
+use crate::settings::{ModelFile, ModelRelease, ModelSettings};
 
-/// A model bundle s1grep needs, and where it lives on Hugging Face.
-pub struct Published {
-    pub bundle: &'static str,
-    pub repository: &'static str,
-    folder: &'static str,
+/// Why one download attempt failed: worth retrying or not.
+enum Failure {
+    /// Hugging Face is busy or failed for a moment; wait this long and try again.
+    Retry(Duration, String),
+    Fatal(anyhow::Error),
 }
 
-impl Published {
-    pub const ALL: [Published; 2] = [
-        Published {
-            bundle: ModelSettings::JUDGE_BUNDLE,
-            repository: ModelSettings::JUDGE_REPOSITORY,
-            folder: ModelSettings::JUDGE_FOLDER,
-        },
-        Published {
-            bundle: ModelSettings::RETRIEVER_BUNDLE,
-            repository: ModelSettings::RETRIEVER_REPOSITORY,
-            folder: "",
-        },
-    ];
-}
-
-/// One file of a Hugging Face repository, as its tree listing describes it.
-#[derive(Deserialize)]
-struct RemoteFile {
-    #[serde(rename = "type")]
-    kind: String,
-    path: String,
-    size: u64,
-    lfs: Option<LargeFile>,
-}
-
-#[derive(Deserialize)]
-struct LargeFile {
-    oid: String,
-}
-
-/// Talks to the Hugging Face Hub. `HF_TOKEN` is sent when set, for repositories that are still private.
-struct HubClient {
+/// Downloads the pinned model files from Hugging Face. No API calls: every file and its SHA-256 are known in advance.
+/// `HF_TOKEN` is sent when set, for repositories that are still private.
+pub struct ModelInstaller {
     agent: ureq::Agent,
     token: Option<String>,
 }
 
-impl HubClient {
-    fn new() -> Self {
+impl ModelInstaller {
+    pub fn new() -> Self {
         Self {
-            agent: ureq::Agent::new_with_defaults(),
+            // Status codes are read, not turned into errors, so a 429 keeps its Retry-After header.
+            agent: ureq::Agent::config_builder().http_status_as_error(false).build().into(),
             token: std::env::var("HF_TOKEN").ok().filter(|token| !token.is_empty()),
         }
     }
 
-    fn get(&self, url: &str) -> anyhow::Result<ureq::http::Response<ureq::Body>> {
-        let mut request = self.agent.get(url);
+    /// Whether every file of every bundle is in `root` with its expected size.
+    pub fn is_complete(root: &Path) -> bool {
+        ModelSettings::RELEASES.iter().all(|release| {
+            release.files.iter().all(|file| {
+                Self::target(root, release, file)
+                    .metadata()
+                    .is_ok_and(|meta| meta.len() == file.size)
+            })
+        })
+    }
+
+    pub fn install(&self, root: &Path, force: bool) -> anyhow::Result<()> {
+        for release in &ModelSettings::RELEASES {
+            std::fs::create_dir_all(root.join(release.bundle))
+                .with_context(|| format!("creating {}", root.join(release.bundle).display()))?;
+            for file in release.files {
+                let target = Self::target(root, release, file);
+                let complete = target.metadata().is_ok_and(|metadata| metadata.len() == file.size);
+                if complete && !force {
+                    continue;
+                }
+                eprintln!(
+                    "{} · {} ({:.1} MB)",
+                    release.bundle,
+                    Self::name(file),
+                    file.size as f64 / 1e6
+                );
+                self.download_with_retries(release, file, &target)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn target(root: &Path, release: &ModelRelease, file: &ModelFile) -> std::path::PathBuf {
+        root.join(release.bundle).join(Self::name(file))
+    }
+
+    fn name(file: &ModelFile) -> &str {
+        file.path.rsplit('/').next().unwrap_or(file.path)
+    }
+
+    fn download_with_retries(&self, release: &ModelRelease, file: &ModelFile, target: &Path) -> anyhow::Result<()> {
+        for attempt in 1..=ModelSettings::DOWNLOAD_ATTEMPTS {
+            match self.download(release, file, target) {
+                Ok(()) => return Ok(()),
+                Err(Failure::Fatal(error)) => return Err(error),
+                Err(Failure::Retry(wait, reason)) if attempt < ModelSettings::DOWNLOAD_ATTEMPTS => {
+                    eprintln!(
+                        "  {reason}; trying again in {} s ({attempt}/{})",
+                        wait.as_secs(),
+                        ModelSettings::DOWNLOAD_ATTEMPTS
+                    );
+                    std::thread::sleep(wait);
+                }
+                Err(Failure::Retry(_, reason)) => bail!(
+                    "{reason}; gave up after {} attempts, try `s1grep setup` again later",
+                    ModelSettings::DOWNLOAD_ATTEMPTS
+                ),
+            }
+        }
+        unreachable!("the last attempt either succeeds or gives up")
+    }
+
+    /// One attempt: streams the file next to its target, checks size and SHA-256, then moves it into place.
+    fn download(&self, release: &ModelRelease, file: &ModelFile, target: &Path) -> Result<(), Failure> {
+        let url = format!(
+            "{}/{}/resolve/{}/{}",
+            ModelSettings::HUB,
+            release.repository,
+            release.revision,
+            file.path
+        );
+        let mut request = self.agent.get(&url);
         if let Some(token) = &self.token {
             request = request.header("Authorization", format!("Bearer {token}"));
         }
-        match request.call() {
-            Ok(response) => Ok(response),
-            Err(ureq::Error::StatusCode(status @ (401 | 403 | 404))) => {
-                bail!("{url} answered {status}: the model is not public yet (set HF_TOKEN if you have access)")
+        let response = match request.call() {
+            Ok(response) => response,
+            Err(error) => {
+                return Err(Failure::Retry(
+                    Duration::from_secs(5),
+                    format!("network error: {error}"),
+                ));
             }
-            Err(error) => Err(error).with_context(|| format!("downloading {url}")),
+        };
+        match response.status().as_u16() {
+            200..=299 => {}
+            status @ (401 | 403 | 404) => {
+                return Err(Failure::Fatal(anyhow::anyhow!(
+                    "{} answered {status}: the model is not public yet (set HF_TOKEN if you have access)",
+                    release.repository
+                )));
+            }
+            429 => {
+                let wait = response
+                    .headers()
+                    .get("retry-after")
+                    .and_then(|value| value.to_str().ok())
+                    .and_then(|value| value.trim().parse::<u64>().ok())
+                    .map_or(Duration::from_secs(20), Duration::from_secs)
+                    .min(ModelSettings::DOWNLOAD_MAXIMUM_WAIT);
+                return Err(Failure::Retry(
+                    wait,
+                    "Hugging Face asked to slow down (429)".to_string(),
+                ));
+            }
+            status if status >= 500 => {
+                return Err(Failure::Retry(
+                    Duration::from_secs(10),
+                    format!("Hugging Face failed for a moment ({status})"),
+                ));
+            }
+            status => return Err(Failure::Fatal(anyhow::anyhow!("{url} answered {status}"))),
+        }
+        let partial = target.with_extension("part");
+        let result = Self::stream(response, file, &partial);
+        match result {
+            Ok(()) => std::fs::rename(&partial, target).map_err(|error| Failure::Fatal(error.into())),
+            Err(failure) => {
+                let _ = std::fs::remove_file(&partial);
+                Err(failure)
+            }
         }
     }
 
-    fn files(&self, published: &Published) -> anyhow::Result<Vec<RemoteFile>> {
-        let url = format!(
-            "{}/api/models/{}/tree/main/{}",
-            ModelSettings::HUB,
-            published.repository,
-            published.folder
-        );
-        let listing: Vec<RemoteFile> = self
-            .get(&url)?
-            .into_body()
-            .read_json()
-            .context("reading the file list")?;
-        Ok(listing
-            .into_iter()
-            .filter(|file| file.kind == "file" && !file.path.ends_with(".md") && !file.path.starts_with('.'))
-            .collect())
-    }
-
-    /// Streams one file to `target`, checking the SHA-256 that the Hub publishes for large files.
-    fn download(&self, published: &Published, file: &RemoteFile, target: &Path) -> anyhow::Result<()> {
-        let url = format!(
-            "{}/{}/resolve/main/{}",
-            ModelSettings::HUB,
-            published.repository,
-            file.path
-        );
-        let partial = target.with_extension("part");
-        let mut reader = self.get(&url)?.into_body().into_reader();
-        let mut output = std::fs::File::create(&partial).with_context(|| format!("creating {}", partial.display()))?;
+    fn stream(response: ureq::http::Response<ureq::Body>, file: &ModelFile, partial: &Path) -> Result<(), Failure> {
+        let fatal = |error: std::io::Error| {
+            Failure::Fatal(anyhow::Error::from(error).context(format!("writing {}", partial.display())))
+        };
+        let mut reader = response.into_body().into_reader();
+        let mut output = std::fs::File::create(partial).map_err(fatal)?;
         let mut hasher = Sha256::new();
         let mut buffer = vec![0_u8; 1 << 20];
         let mut written = 0_u64;
         let mut last_percent = u64::MAX;
         loop {
-            let read = reader.read(&mut buffer)?;
-            if read == 0 {
-                break;
-            }
-            output.write_all(&buffer[..read])?;
+            let read = match reader.read(&mut buffer) {
+                Ok(0) => break,
+                Ok(read) => read,
+                Err(error) => {
+                    return Err(Failure::Retry(
+                        Duration::from_secs(5),
+                        format!("download interrupted: {error}"),
+                    ));
+                }
+            };
+            output.write_all(&buffer[..read]).map_err(fatal)?;
             hasher.update(&buffer[..read]);
             written += read as u64;
             let percent = written * 100 / file.size.max(1);
             if file.size > ModelSettings::DOWNLOAD_PROGRESS_FROM && percent != last_percent && percent % 10 == 0 {
-                eprintln!("  {} {percent:>3} %", file.path);
+                eprintln!("  {} {percent:>3} %", Self::name(file));
                 last_percent = percent;
             }
         }
-        output.flush()?;
+        output.flush().map_err(fatal)?;
         if written != file.size {
-            bail!("{} arrived with {written} bytes instead of {}", file.path, file.size);
+            return Err(Failure::Retry(
+                Duration::from_secs(5),
+                format!("{} arrived with {written} of {} bytes", Self::name(file), file.size),
+            ));
         }
-        if let Some(large) = &file.lfs {
-            let digest: String = hasher.finalize().iter().map(|byte| format!("{byte:02x}")).collect();
-            if digest != large.oid {
-                bail!("{} failed its SHA-256 check", file.path);
-            }
-        }
-        std::fs::rename(&partial, target)?;
-        Ok(())
-    }
-}
-
-/// Puts the published bundles in a model folder, skipping files that are already complete.
-pub struct ModelInstaller {
-    hub: HubClient,
-}
-
-impl ModelInstaller {
-    pub fn new() -> Self {
-        Self { hub: HubClient::new() }
-    }
-
-    pub fn install(&self, root: &Path, force: bool) -> anyhow::Result<()> {
-        for published in &Published::ALL {
-            let folder = root.join(published.bundle);
-            std::fs::create_dir_all(&folder).with_context(|| format!("creating {}", folder.display()))?;
-            for file in self.hub.files(published)? {
-                let name = file.path.rsplit('/').next().unwrap_or(&file.path).to_string();
-                let target = folder.join(&name);
-                let complete = target.metadata().is_ok_and(|metadata| metadata.len() == file.size);
-                if complete && !force {
-                    continue;
-                }
-                eprintln!("{} · {name} ({:.1} MB)", published.bundle, file.size as f64 / 1e6);
-                self.hub.download(published, &file, &target)?;
-            }
+        let digest: String = hasher.finalize().iter().map(|byte| format!("{byte:02x}")).collect();
+        if digest != file.sha256 {
+            return Err(Failure::Fatal(anyhow::anyhow!(
+                "{} failed its SHA-256 check",
+                Self::name(file)
+            )));
         }
         Ok(())
-    }
-
-    /// Whether every published bundle has its graph in `root`.
-    pub fn is_complete(root: &Path) -> bool {
-        Published::ALL
-            .iter()
-            .all(|published| root.join(published.bundle).join("model.onnx").is_file())
     }
 }
