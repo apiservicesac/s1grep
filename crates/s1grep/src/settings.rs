@@ -21,8 +21,6 @@ impl SearchSettings {
     pub const QUESTION_TEMPLATE: &'static str = "This code answers the search: ";
     /// Lines of code shown under each result in the terminal.
     pub const PREVIEW_LINES: usize = 6;
-    /// A search slower than this in a local process suggests `s1grep serve`.
-    pub const SLOW_SEARCH_SECONDS: f64 = 8.0;
 }
 
 /// How projects are read and indexed.
@@ -43,14 +41,22 @@ impl IndexSettings {
     pub const SCAN_REPORT_EVERY: usize = 500;
 }
 
-/// The background server.
+/// The background server that keeps the models in memory between searches. Searches start it on their own.
 pub struct ServerSettings;
 
 impl ServerSettings {
+    /// It stops after this long without searches, releasing the memory.
+    pub const IDLE: Duration = Duration::from_secs(30 * 60);
+    /// How long a search waits for a freshly started server to load the models.
+    pub const START_TIMEOUT: Duration = Duration::from_secs(180);
+    pub const STOP_TIMEOUT: Duration = Duration::from_secs(15);
     pub const CONNECT_TIMEOUT: Duration = Duration::from_millis(300);
     /// Time a client has to send its request once connected.
     pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
+    pub const POLL_INTERVAL: Duration = Duration::from_millis(100);
     pub const INFO_FILE: &'static str = "server.json";
+    pub const LOCK_FILE: &'static str = "server.lock";
+    pub const LOG_FILE: &'static str = "server.log";
 }
 
 /// Terminal output.

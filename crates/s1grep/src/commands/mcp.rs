@@ -22,7 +22,7 @@ pub struct McpCommand {
 }
 
 /// A Model Context Protocol server on stdin/stdout with one tool, `search_code`. The models load on the first call,
-/// or not at all when `s1grep serve` is running.
+/// or not at all when the background process is already running.
 struct McpServer {
     backend: SearchBackend,
     default_root: PathBuf,

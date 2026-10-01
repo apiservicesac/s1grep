@@ -20,14 +20,19 @@ impl StatusCommand {
     /// One screen with the server, the models and every indexed project.
     pub fn run(self) -> anyhow::Result<()> {
         let display = ProgressDisplay::new();
-        let server = match ServerClient::connect() {
-            Some(client) => display.good(&format!(
-                "● running on 127.0.0.1:{} (pid {})",
-                client.info.port, client.info.pid
-            )),
-            None => {
-                display.dim("○ not running · searches load the models each time (`s1grep serve` keeps them loaded)")
+        let server = match ServerClient::any() {
+            Some(client) => {
+                let lifetime = match client.info.idle_minutes {
+                    Some(minutes) => format!("stops after {minutes} min without searches"),
+                    None => "started by hand".to_string(),
+                };
+                format!(
+                    "{}  {}",
+                    display.good(&format!("● running (pid {}), models in memory", client.info.pid)),
+                    display.dim(&format!("{lifetime} · `s1grep stop` stops it now"))
+                )
             }
+            None => display.dim("○ not running · the next search starts it"),
         };
         let models_root = self.models.resolved()?;
         let models = if ModelInstaller::is_complete(&models_root) {
@@ -35,7 +40,7 @@ impl StatusCommand {
         } else {
             display.warn("○ missing · run `s1grep setup`")
         };
-        println!("Server    {server}");
+        println!("Process   {server}");
         println!(
             "Models    {models}  {}",
             display.dim(&models_root.display().to_string())

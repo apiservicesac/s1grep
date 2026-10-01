@@ -10,4 +10,5 @@ pub mod serve;
 pub mod setup;
 pub mod skill;
 pub mod status;
+pub mod stop;
 pub mod units;

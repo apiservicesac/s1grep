@@ -52,7 +52,7 @@ pub struct SearchArgs {
     /// Lines of code shown under each result
     #[arg(long, default_value_t = SearchSettings::PREVIEW_LINES)]
     pub lines: usize,
-    /// Run in this process even when `s1grep serve` is running
+    /// Run in this process instead of the background one (loads the models every time)
     #[arg(long)]
     pub no_server: bool,
     #[arg(long, hide = true)]
@@ -71,9 +71,7 @@ impl SearchArgs {
         let request = SearchRequest::new(query, &self.path, self.top, judge_top, self.filter.filters())?;
         let mut backend = SearchBackend::new(self.models.clone(), self.threads, !self.no_server);
         let mut display = ProgressDisplay::new();
-        let mut indexed_anything = false;
         let (response, answered) = backend.search(&request, &mut |event| {
-            indexed_anything |= matches!(event, crate::progress::IndexEvent::Embedding { .. });
             display.show(&event);
         })?;
         display.clear();
@@ -91,26 +89,14 @@ impl SearchArgs {
             }
             .render()
         );
-        Self::summary(
-            &mut display,
-            &response,
-            answered,
-            started.elapsed().as_secs_f64(),
-            indexed_anything,
-        );
+        Self::summary(&mut display, &response, answered, started.elapsed().as_secs_f64());
         Ok(())
     }
 
-    fn summary(
-        display: &mut ProgressDisplay,
-        response: &SearchResponse,
-        answered: Answered,
-        total: f64,
-        indexed: bool,
-    ) {
+    fn summary(display: &mut ProgressDisplay, response: &SearchResponse, answered: Answered, total: f64) {
         let source = match answered {
-            Answered::Server => "s1grep serve",
-            Answered::Local => "this process",
+            Answered::Server => "models in memory",
+            Answered::Local => "models loaded for this search",
         };
         let coverage = if response.is_complete() {
             format!("{} functions", Units::count(response.functions))
@@ -129,11 +115,6 @@ impl SearchArgs {
         if !response.is_complete() {
             display
                 .line(&display.dim("The rest is being indexed by another s1grep; `s1grep status` shows its progress."));
-        }
-        if answered == Answered::Local && (indexed || total > SearchSettings::SLOW_SEARCH_SECONDS) {
-            display.line(&display.accent(
-                "Tip: `s1grep serve` in another terminal keeps the models loaded: searches take about a second.",
-            ));
         }
     }
 }

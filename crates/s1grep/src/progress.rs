@@ -5,12 +5,14 @@ use serde::{Deserialize, Serialize};
 
 use crate::settings::DisplaySettings;
 
-/// What the indexer is doing, sent to whoever waits for it: the terminal, or a client of `s1grep serve`.
+/// What s1grep is doing, sent to whoever waits for it: the terminal, or a search answered by the background process.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "event", rename_all = "snake_case")]
 pub enum IndexEvent {
     /// Loading the models into this process (about 2.4 GB), before anything else can happen.
     LoadingModels,
+    /// Starting the background process that keeps the models loaded between searches.
+    StartingServer,
     /// Reading files and splitting them into functions.
     Scanning { done: usize, files: usize },
     Scanned {
@@ -72,8 +74,11 @@ impl ProgressDisplay {
     pub fn show(&mut self, event: &IndexEvent) {
         match event {
             IndexEvent::LoadingModels => {
+                self.live("Loading the models (about 10 s)…", true);
+            }
+            IndexEvent::StartingServer => {
                 self.live(
-                    "Loading the models (about 10 s; `s1grep serve` keeps them loaded between searches)…",
+                    "Loading the models once (about 10 s); later searches take about a second…",
                     true,
                 );
             }

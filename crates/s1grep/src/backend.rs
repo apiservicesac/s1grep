@@ -1,10 +1,10 @@
 use crate::models::ModelDirectory;
 use crate::progress::IndexEvent;
-use crate::server::ServerClient;
+use crate::server::BackgroundServer;
 use crate::service::{SearchRequest, SearchResponse, SearchService};
 
-/// Where a search runs: in a running `s1grep serve` when there is one, otherwise in this process, loading the models
-/// on first use.
+/// Where a search runs: in the background process, started on demand so the models stay loaded between searches, or
+/// in this process when that is turned off with `--no-server` or cannot start.
 pub struct SearchBackend {
     models: ModelDirectory,
     threads: Option<usize>,
@@ -35,7 +35,7 @@ impl SearchBackend {
         progress: &mut dyn FnMut(IndexEvent),
     ) -> anyhow::Result<(SearchResponse, Answered)> {
         if self.use_server
-            && let Some(client) = ServerClient::connect()
+            && let Some(client) = BackgroundServer::ensure(&self.models, progress)
         {
             return Ok((client.search(request, progress)?, Answered::Server));
         }

@@ -27,6 +27,7 @@ use commands::serve::ServeCommand;
 use commands::setup::SetupCommand;
 use commands::skill::SkillCommand;
 use commands::status::StatusCommand;
+use commands::stop::StopCommand;
 use commands::units::UnitsCommand;
 use runtime_library::RuntimeLibrary;
 
@@ -55,7 +56,9 @@ enum Command {
     Status(StatusCommand),
     /// Check that the models, the server and the index are in place
     Doctor(DoctorCommand),
-    /// Keep the models loaded so that searches answer in about a second
+    /// Stop the background process that keeps the models loaded (the next search starts it again)
+    Stop(StopCommand),
+    #[command(hide = true)]
     Serve(ServeCommand),
     /// Run as an MCP server for coding agents (stdio)
     Mcp(McpCommand),
@@ -85,6 +88,7 @@ fn main() -> anyhow::Result<()> {
         Some(Command::Setup(command)) => command.run(),
         Some(Command::Status(command)) => command.run(),
         Some(Command::Doctor(command)) => command.run(),
+        Some(Command::Stop(command)) => command.run(),
         Some(Command::Serve(command)) => command.run(),
         Some(Command::Mcp(command)) => command.run(),
         Some(Command::Skill(command)) => command.run(),

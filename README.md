@@ -71,7 +71,7 @@ s1grep "export rows to csv" . --json                     # machine-readable, for
 | `s1grep setup` | Downloads the models, once |
 | `s1grep status` | Shows the server, the models and how far each project is indexed |
 | `s1grep doctor` | Shows whether the models, the server and the index are in place |
-| `s1grep serve` | Keeps the models loaded; searches find it on their own and take about 1.5 s instead of about 10 s |
+| `s1grep stop` | Stops the background process now, freeing its memory (the next search starts it again) |
 | `s1grep mcp` | Runs as an MCP server with one tool, `search_code`, for coding agents |
 | `s1grep skill --install` | Installs the Claude Code skill that tells agents when to use s1grep |
 | `s1grep index [PATH]` | Indexes a large repository ahead of the first search |
@@ -100,8 +100,15 @@ claude mcp add s1grep -- s1grep mcp       # Claude Code MCP server
 codex mcp add s1grep -- s1grep mcp        # Codex MCP server
 ```
 
-Other agents take the command `s1grep` with the argument `mcp` over stdio. The MCP server loads the models on the first
-call, or uses `s1grep serve` when it is running.
+Other agents take the command `s1grep` with the argument `mcp` over stdio. Agents and the terminal share the same
+background process.
+
+### Speed and memory
+
+Loading the two models takes about 10 seconds, so the first search starts a background process that keeps them in
+memory (about 2.5 GB): later searches take about a second. Nothing has to be started by hand, no second terminal is
+needed, and the process stops on its own after 30 minutes without searches. `s1grep status` shows it, `s1grep stop`
+stops it now, and `--no-server` runs a search entirely in the terminal's own process.
 
 ## Models
 

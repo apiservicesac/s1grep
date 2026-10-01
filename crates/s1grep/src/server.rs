@@ -1,11 +1,14 @@
+use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
 use std::net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream};
 use std::path::PathBuf;
+use std::process::{Command, Stdio};
+use std::time::{Duration, Instant};
 
 use anyhow::{Context, bail};
 use serde::{Deserialize, Serialize};
 
-use crate::models::CacheDirectory;
+use crate::models::{CacheDirectory, ModelDirectory};
 use crate::progress::IndexEvent;
 use crate::service::{SearchRequest, SearchResponse, SearchService};
 use crate::settings::ServerSettings;
@@ -18,6 +21,9 @@ pub struct ServerInfo {
     pub token: String,
     pub pid: u32,
     pub version: String,
+    /// Minutes without searches before it stops on its own; `None` when started by hand.
+    #[serde(default)]
+    pub idle_minutes: Option<u64>,
 }
 
 impl ServerInfo {
@@ -63,6 +69,8 @@ impl ServerInfo {
 struct Envelope {
     token: String,
     request: Option<SearchRequest>,
+    #[serde(default)]
+    shutdown: bool,
 }
 
 /// One line from the server: progress while it indexes, then the response or an error.
@@ -74,36 +82,51 @@ struct Reply {
     error: Option<String>,
 }
 
-/// Keeps the models in memory and answers searches over a loopback connection, one at a time.
+/// Keeps the models in memory and answers searches over a loopback connection, one at a time. Only one runs per
+/// user: it holds a lock file for as long as it lives, released by the system even if it crashes.
 pub struct SearchServer {
     service: SearchService,
     info: ServerInfo,
     listener: TcpListener,
+    idle: Option<Duration>,
+    _lock: File,
 }
 
 impl SearchServer {
-    pub fn start(service: SearchService, port: u16) -> anyhow::Result<Self> {
-        if let Some(running) = ServerClient::connect() {
-            bail!(
-                "s1grep serve is already running (pid {}, port {})",
-                running.info.pid,
-                running.info.port
-            );
-        }
+    pub fn start(service: SearchService, port: u16, idle: Option<Duration>) -> anyhow::Result<Self> {
+        let lock = Self::lock()?.context("an s1grep server is already running (`s1grep status` shows it)")?;
         let listener =
             TcpListener::bind((Ipv4Addr::LOCALHOST, port)).with_context(|| format!("listening on port {port}"))?;
+        listener.set_nonblocking(true)?;
         let info = ServerInfo {
             port: listener.local_addr()?.port(),
             token: ServerInfo::new_token()?,
             pid: std::process::id(),
             version: env!("CARGO_PKG_VERSION").to_string(),
+            idle_minutes: idle.map(|duration| duration.as_secs() / 60),
         };
         info.write()?;
         Ok(Self {
             service,
             info,
             listener,
+            idle,
+            _lock: lock,
         })
+    }
+
+    /// The server lock, or `None` when another server holds it.
+    fn lock() -> anyhow::Result<Option<File>> {
+        let path = CacheDirectory::root()?.join(ServerSettings::LOCK_FILE);
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let file = OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .write(true)
+            .open(&path)?;
+        Ok(file.try_lock().ok().map(|()| file))
     }
 
     pub fn port(&self) -> u16 {
@@ -111,29 +134,59 @@ impl SearchServer {
     }
 
     pub fn run(mut self) -> anyhow::Result<()> {
-        for stream in self.listener.try_clone()?.incoming() {
-            let Ok(stream) = stream else { continue };
-            if let Err(error) = self.answer(stream) {
-                eprintln!("s1grep serve: {error:#}");
+        let mut last_activity = Instant::now();
+        loop {
+            match self.listener.accept() {
+                Ok((stream, _)) => {
+                    stream.set_nonblocking(false)?;
+                    match self.answer(stream) {
+                        Ok(true) => break,
+                        Ok(false) => {}
+                        Err(error) => eprintln!("s1grep server: {error:#}"),
+                    }
+                    last_activity = Instant::now();
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                    if let Some(idle) = self.idle
+                        && last_activity.elapsed() >= idle
+                    {
+                        eprintln!(
+                            "s1grep server: stopping after {} min without searches",
+                            idle.as_secs() / 60
+                        );
+                        break;
+                    }
+                    std::thread::sleep(ServerSettings::POLL_INTERVAL);
+                }
+                Err(error) => return Err(error.into()),
             }
         }
         self.info.remove();
         Ok(())
     }
 
-    fn answer(&mut self, stream: TcpStream) -> anyhow::Result<()> {
+    /// Answers one connection; `true` when it asked the server to stop.
+    fn answer(&mut self, stream: TcpStream) -> anyhow::Result<bool> {
         stream.set_read_timeout(Some(ServerSettings::REQUEST_TIMEOUT))?;
         let mut line = String::new();
         BufReader::new(&stream).read_line(&mut line)?;
         let envelope: Envelope = serde_json::from_str(&line).context("malformed request")?;
+        let mut stop = false;
         let reply = if envelope.token != self.info.token {
             Reply {
                 progress: None,
                 response: None,
                 error: Some("wrong token".to_string()),
             }
+        } else if envelope.shutdown {
+            stop = true;
+            Reply {
+                progress: None,
+                response: None,
+                error: None,
+            }
         } else if let Some(request) = envelope.request {
-            let started = std::time::Instant::now();
+            let started = Instant::now();
             let mut writer = &stream;
             let mut send_progress = |event: IndexEvent| {
                 let line = Reply {
@@ -175,7 +228,7 @@ impl SearchServer {
         let mut writer = &stream;
         writer.write_all(serde_json::to_string(&reply)?.as_bytes())?;
         writer.write_all(b"\n")?;
-        Ok(())
+        Ok(stop)
     }
 }
 
@@ -185,18 +238,24 @@ impl Drop for SearchServer {
     }
 }
 
-/// A connection to a running `s1grep serve`, when there is one.
+/// A connection to a running server.
 pub struct ServerClient {
     pub info: ServerInfo,
 }
 
 impl ServerClient {
-    /// The running server, if its file exists, it answers, and it is the same version as this binary.
+    /// The running server of this version, if there is one.
     pub fn connect() -> Option<Self> {
-        let info = ServerInfo::read()?;
-        let client = Self { info };
-        client.exchange(None, &mut |_| {}).ok()?;
-        (client.info.version == env!("CARGO_PKG_VERSION")).then_some(client)
+        Self::any().filter(|client| client.info.version == env!("CARGO_PKG_VERSION"))
+    }
+
+    /// The running server of any version, if there is one.
+    pub fn any() -> Option<Self> {
+        let client = Self {
+            info: ServerInfo::read()?,
+        };
+        client.exchange(None, false, &mut |_| {}).ok()?;
+        Some(client)
     }
 
     pub fn search(
@@ -204,13 +263,27 @@ impl ServerClient {
         request: &SearchRequest,
         progress: &mut dyn FnMut(IndexEvent),
     ) -> anyhow::Result<SearchResponse> {
-        self.exchange(Some(request.clone()), progress)?
+        self.exchange(Some(request.clone()), false, progress)?
             .context("the server sent no results")
+    }
+
+    /// Asks the server to stop and waits until it has.
+    pub fn stop(&self) -> anyhow::Result<()> {
+        self.exchange(None, true, &mut |_| {})?;
+        let deadline = Instant::now() + ServerSettings::STOP_TIMEOUT;
+        while Instant::now() < deadline {
+            if SearchServer::lock()?.is_some() {
+                return Ok(());
+            }
+            std::thread::sleep(ServerSettings::POLL_INTERVAL);
+        }
+        bail!("the s1grep server (pid {}) did not stop", self.info.pid)
     }
 
     fn exchange(
         &self,
         request: Option<SearchRequest>,
+        shutdown: bool,
         progress: &mut dyn FnMut(IndexEvent),
     ) -> anyhow::Result<Option<SearchResponse>> {
         let address = SocketAddr::from((Ipv4Addr::LOCALHOST, self.info.port));
@@ -219,11 +292,12 @@ impl ServerClient {
         let envelope = Envelope {
             token: self.info.token.clone(),
             request,
+            shutdown,
         };
         writer.write_all(serde_json::to_string(&envelope)?.as_bytes())?;
         writer.write_all(b"\n")?;
         for line in BufReader::new(&stream).lines() {
-            let reply: Reply = serde_json::from_str(&line?).context("malformed reply from s1grep serve")?;
+            let reply: Reply = serde_json::from_str(&line?).context("malformed reply from the s1grep server")?;
             if let Some(event) = reply.progress {
                 progress(event);
                 continue;
@@ -233,6 +307,60 @@ impl ServerClient {
             }
             return Ok(reply.response);
         }
-        bail!("s1grep serve closed the connection")
+        bail!("the s1grep server closed the connection")
+    }
+}
+
+/// Starts the server in the background when none is running, so that nobody has to start it by hand.
+pub struct BackgroundServer;
+
+impl BackgroundServer {
+    /// A client of a running server of this version, starting one if needed; `None` if it could not be started.
+    pub fn ensure(models: &ModelDirectory, progress: &mut dyn FnMut(IndexEvent)) -> Option<ServerClient> {
+        if let Some(client) = ServerClient::connect() {
+            return Some(client);
+        }
+        if let Some(outdated) = ServerClient::any() {
+            let _ = outdated.stop();
+        }
+        progress(IndexEvent::StartingServer);
+        Self::spawn(models).ok()?;
+        let deadline = Instant::now() + ServerSettings::START_TIMEOUT;
+        while Instant::now() < deadline {
+            if let Some(client) = ServerClient::connect() {
+                return Some(client);
+            }
+            std::thread::sleep(ServerSettings::POLL_INTERVAL);
+        }
+        None
+    }
+
+    fn spawn(models: &ModelDirectory) -> anyhow::Result<()> {
+        let log_path = CacheDirectory::root()?.join(ServerSettings::LOG_FILE);
+        if let Some(parent) = log_path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let log = OpenOptions::new().create(true).append(true).open(&log_path)?;
+        let mut command = Command::new(std::env::current_exe()?);
+        command.args(["serve", "--background"]);
+        if let Some(folder) = models.explicit() {
+            command.arg("--models").arg(folder);
+        }
+        command.stdin(Stdio::null()).stdout(Stdio::null()).stderr(log);
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::CommandExt;
+            // Its own process group: Ctrl+C in the terminal that started it does not reach it.
+            command.process_group(0);
+        }
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            const DETACHED_PROCESS: u32 = 0x0000_0008;
+            const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
+            command.creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP);
+        }
+        command.spawn().context("starting the s1grep server")?;
+        Ok(())
     }
 }

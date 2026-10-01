@@ -44,6 +44,11 @@ pub struct ModelDirectory {
 }
 
 impl ModelDirectory {
+    /// The folder given with `--models` or `S1GREP_MODELS`, if any.
+    pub fn explicit(&self) -> Option<&std::path::Path> {
+        self.folder.as_deref()
+    }
+
     /// The folder in use: `--models`, `S1GREP_MODELS`, or the cache.
     pub fn resolved(&self) -> anyhow::Result<PathBuf> {
         match &self.folder {

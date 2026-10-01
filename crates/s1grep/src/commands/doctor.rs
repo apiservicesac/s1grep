@@ -32,15 +32,15 @@ impl DoctorCommand {
         if !ready {
             println!("     run `s1grep setup` to download them");
         }
-        println!("\nServer");
+        println!("\nBackground process");
         match ServerClient::connect() {
             Some(client) => println!(
-                "  {}  s1grep serve on 127.0.0.1:{} (pid {})",
+                "  {}  running on 127.0.0.1:{} (pid {}), models in memory",
                 Self::mark(true),
                 client.info.port,
                 client.info.pid
             ),
-            None => println!("  -  not running; searches load the models each time (`s1grep serve` avoids that)"),
+            None => println!("  -  not running; the next search starts it"),
         }
         println!("\nIndex");
         match Project::locate(&self.path) {
