@@ -106,7 +106,9 @@ preflight() {
         command -v "${tool}" >/dev/null || error "${tool} is required"
     done
     local glibc
-    glibc="$(ldd --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+$' || echo 0)"
+    # `getconf` prints one line ("glibc 2.39"); reading `ldd --version` through a pipe breaks under pipefail.
+    glibc="$(getconf GNU_LIBC_VERSION 2>/dev/null | awk '{print $2}')"
+    glibc="${glibc:-0}"
     [ "$(printf '%s\n%s\n' "${MINIMUM_GLIBC}" "${glibc}" | sort -V | head -1)" = "${MINIMUM_GLIBC}" ] \
         || error "glibc ${MINIMUM_GLIBC} or newer is required (this machine has ${glibc}): Ubuntu 24.04, Debian 13 or newer."
     success "Linux x86-64, glibc ${glibc}"
