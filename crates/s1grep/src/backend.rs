@@ -1,4 +1,5 @@
 use crate::models::ModelDirectory;
+use crate::progress::IndexEvent;
 use crate::server::ServerClient;
 use crate::service::{SearchRequest, SearchResponse, SearchService};
 
@@ -28,16 +29,21 @@ impl SearchBackend {
         }
     }
 
-    pub fn search(&mut self, request: &SearchRequest) -> anyhow::Result<(SearchResponse, Answered)> {
+    pub fn search(
+        &mut self,
+        request: &SearchRequest,
+        progress: &mut dyn FnMut(IndexEvent),
+    ) -> anyhow::Result<(SearchResponse, Answered)> {
         if self.use_server
             && let Some(client) = ServerClient::connect()
         {
-            return Ok((client.search(request)?, Answered::Server));
+            return Ok((client.search(request, progress)?, Answered::Server));
         }
         if self.local.is_none() {
+            progress(IndexEvent::LoadingModels);
             self.local = Some(SearchService::load(&self.models, true, self.threads)?);
         }
         let service = self.local.as_mut().expect("loaded above");
-        Ok((service.search(request)?, Answered::Local))
+        Ok((service.search(request, progress)?, Answered::Local))
     }
 }

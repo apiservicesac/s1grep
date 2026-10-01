@@ -62,21 +62,35 @@ s1grep "export rows to csv" . --json                     # machine-readable, for
 | `-n, --top N` | Results to show (default 5) |
 | `--judge-top N` | Candidates the judge reads (default 5; 10 is slower and slightly more accurate) |
 | `--no-judge` | Rank by embeddings only |
-| `--include-tests` | Also search `tests/` and `migrations/`, skipped by default |
+| `--exclude PATTERN` | Leave out matching files or folders for this search (gitignore syntax, repeatable) |
 | `--lines N` | Lines of code shown under each result (default 6) |
 | `--json` | Results as JSON, with the whole source of each function |
 
 | Command | What it does |
 |---|---|
 | `s1grep setup` | Downloads the models, once |
+| `s1grep status` | Shows the server, the models and how far each project is indexed |
 | `s1grep doctor` | Shows whether the models, the server and the index are in place |
 | `s1grep serve` | Keeps the models loaded; searches find it on their own and take about 1.5 s instead of about 10 s |
 | `s1grep mcp` | Runs as an MCP server with one tool, `search_code`, for coding agents |
 | `s1grep skill --install` | Installs the Claude Code skill that tells agents when to use s1grep |
 | `s1grep index [PATH]` | Indexes a large repository ahead of the first search |
 
-The first search in a repository builds its index (about 2 minutes per 1,500 functions on an 8-core CPU); later
-searches only re-read files that changed.
+The first search in a project builds its index, with a progress bar and the time left (about 2 minutes per 1,500
+functions on an 8-core CPU). Later searches only re-read files whose size or date changed. Searching a subfolder reuses
+the index of its project, and functions shared by several projects are embedded once.
+
+### Choosing what is searched
+
+What s1grep reads is decided by ignore files, with the same syntax as `.gitignore`:
+
+| File | Applies to |
+|---|---|
+| `~/.config/s1grep/ignore` (`%APPDATA%\s1grep\ignore` on Windows) | Every project. Created on first use with the defaults: tests, migrations, dependency folders and build output |
+| `.s1grepignore` in any folder | That folder and below; a line starting with `!` brings back something ignored above, e.g. `!tests/` |
+| `.gitignore` and hidden folders | Always skipped |
+
+`--exclude` adds a pattern for one search.
 
 ### With coding agents
 

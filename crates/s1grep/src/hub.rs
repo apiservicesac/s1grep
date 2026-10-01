@@ -5,7 +5,7 @@ use anyhow::{Context, bail};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
-use crate::models::ModelDirectory;
+use crate::settings::ModelSettings;
 
 /// A model bundle s1grep needs, and where it lives on Hugging Face.
 pub struct Published {
@@ -17,13 +17,13 @@ pub struct Published {
 impl Published {
     pub const ALL: [Published; 2] = [
         Published {
-            bundle: ModelDirectory::JUDGE_BUNDLE,
-            repository: "api-service-sac/s1-code-v3",
-            folder: "onnx",
+            bundle: ModelSettings::JUDGE_BUNDLE,
+            repository: ModelSettings::JUDGE_REPOSITORY,
+            folder: ModelSettings::JUDGE_FOLDER,
         },
         Published {
-            bundle: "granite-278m-onnx",
-            repository: "api-service-sac/granite-embedding-278m-multilingual-onnx",
+            bundle: ModelSettings::RETRIEVER_BUNDLE,
+            repository: ModelSettings::RETRIEVER_REPOSITORY,
             folder: "",
         },
     ];
@@ -51,8 +51,6 @@ struct HubClient {
 }
 
 impl HubClient {
-    const HOST: &'static str = "https://huggingface.co";
-
     fn new() -> Self {
         Self {
             agent: ureq::Agent::new_with_defaults(),
@@ -77,7 +75,7 @@ impl HubClient {
     fn files(&self, published: &Published) -> anyhow::Result<Vec<RemoteFile>> {
         let url = format!(
             "{}/api/models/{}/tree/main/{}",
-            Self::HOST,
+            ModelSettings::HUB,
             published.repository,
             published.folder
         );
@@ -94,7 +92,12 @@ impl HubClient {
 
     /// Streams one file to `target`, checking the SHA-256 that the Hub publishes for large files.
     fn download(&self, published: &Published, file: &RemoteFile, target: &Path) -> anyhow::Result<()> {
-        let url = format!("{}/{}/resolve/main/{}", Self::HOST, published.repository, file.path);
+        let url = format!(
+            "{}/{}/resolve/main/{}",
+            ModelSettings::HUB,
+            published.repository,
+            file.path
+        );
         let partial = target.with_extension("part");
         let mut reader = self.get(&url)?.into_body().into_reader();
         let mut output = std::fs::File::create(&partial).with_context(|| format!("creating {}", partial.display()))?;
@@ -111,7 +114,7 @@ impl HubClient {
             hasher.update(&buffer[..read]);
             written += read as u64;
             let percent = written * 100 / file.size.max(1);
-            if file.size > Self::PROGRESS_FROM && percent != last_percent && percent % 10 == 0 {
+            if file.size > ModelSettings::DOWNLOAD_PROGRESS_FROM && percent != last_percent && percent % 10 == 0 {
                 eprintln!("  {} {percent:>3} %", file.path);
                 last_percent = percent;
             }
@@ -129,8 +132,6 @@ impl HubClient {
         std::fs::rename(&partial, target)?;
         Ok(())
     }
-
-    const PROGRESS_FROM: u64 = 50_000_000;
 }
 
 /// Puts the published bundles in a model folder, skipping files that are already complete.

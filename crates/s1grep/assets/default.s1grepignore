@@ -1,0 +1,21 @@
+# s1grep ignore rules, applied to every project (gitignore syntax).
+#
+# This file is ~/.config/s1grep/ignore (%APPDATA%\s1grep\ignore on Windows); edit it to change what s1grep reads
+# everywhere. A .s1grepignore file in any folder of a project adds rules for that folder, and a line starting with !
+# brings back something ignored here, e.g. !tests/. Files ignored by .gitignore and hidden folders are always skipped.
+
+# Tests and database migrations
+tests/
+migrations/
+
+# Dependencies and virtual environments
+node_modules/
+site-packages/
+vendor/
+third_party/
+venv/
+__pypackages__/
+
+# Build output
+build/
+dist/

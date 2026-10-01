@@ -4,12 +4,15 @@ use std::time::Instant;
 
 use anyhow::{Context, bail};
 use clap::Args;
-use s1_index::{IndexStore, StoredUnit};
+use s1_index::StoredUnit;
 use serde::Deserialize;
 use serde_json::json;
 
-use crate::models::{CacheDirectory, ModelDirectory, Retriever};
-use crate::searcher::{Indexer, Searcher};
+use crate::indexer::Indexer;
+use crate::models::{ModelDirectory, Retriever};
+use crate::project::Project;
+use crate::searcher::Searcher;
+use crate::service::FileFilters;
 
 /// One exam question, in the format the exam builders use: the answer is `path` (with the repository folder in
 /// front) and `function`, plus any equally valid answers.
@@ -98,14 +101,18 @@ impl EvalCommand {
             let root = self.repository_root(&repository)?;
             let questions: Vec<ExamQuestion> = serde_json::from_str(&std::fs::read_to_string(&exam_file)?)
                 .with_context(|| format!("parsing {}", exam_file.display()))?;
-            let mut store = IndexStore::open(&CacheDirectory::index_for(&root)?)?;
-            Indexer {
+            let project = Project {
+                root: std::fs::canonicalize(&root)?,
+                scope: None,
+            };
+            let mut store = project.open_store()?;
+            let mut indexer = Indexer {
                 store: &mut store,
-                embedder: &mut searcher.embedder,
                 retriever: self.retriever,
-            }
-            .refresh(&root, false)?;
-            let units: Vec<(StoredUnit, Vec<f32>)> = store.units_with_vectors(self.retriever.key())?;
+            };
+            indexer.scan(&project.root, &FileFilters::default().walk_options()?, &mut |_| {})?;
+            indexer.embed(&mut searcher.embedder, None, &mut |_| {})?;
+            let units: Vec<(StoredUnit, Vec<f32>)> = store.units_with_vectors(self.retriever.key(), None)?;
             for question in &questions {
                 let answers: Vec<(String, String)> = std::iter::once((&question.path, &question.function))
                     .chain(

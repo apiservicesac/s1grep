@@ -1,23 +1,21 @@
 use std::path::PathBuf;
+use std::time::Instant;
 
 use clap::Args;
-use s1_index::IndexStore;
 
-use crate::models::{CacheDirectory, ModelDirectory, Retriever};
-use crate::searcher::{Indexer, Searcher};
+use crate::commands::search::FilterArgs;
+use crate::models::ModelDirectory;
+use crate::progress::{ProgressDisplay, Units};
+use crate::service::SearchService;
 
 #[derive(Args)]
 pub struct IndexCommand {
-    /// Repository to index
+    /// Project or folder to index
     #[arg(default_value = ".")]
     path: PathBuf,
-    /// Embedding model that finds candidates
-    #[arg(long, value_enum, default_value_t = Retriever::Granite)]
-    retriever: Retriever,
-    /// Also index files under tests/ and migrations/
-    #[arg(long)]
-    include_tests: bool,
-    #[arg(long)]
+    #[command(flatten)]
+    filter: FilterArgs,
+    #[arg(long, hide = true)]
     threads: Option<usize>,
     #[command(flatten)]
     models: ModelDirectory,
@@ -25,26 +23,20 @@ pub struct IndexCommand {
 
 impl IndexCommand {
     pub fn run(self) -> anyhow::Result<()> {
-        let mut searcher = Searcher::load(&self.models, self.retriever, false, self.threads)?;
-        let index_path = CacheDirectory::index_for(&self.path)?;
-        let mut store = IndexStore::open(&index_path)?;
-        let report = Indexer {
-            store: &mut store,
-            embedder: &mut searcher.embedder,
-            retriever: self.retriever,
-        }
-        .refresh(&self.path, self.include_tests)?;
-        eprintln!(
-            "{} files ({} changed, {} removed), {} functions, {} embedded with {} in {:.1} s -> {}",
-            report.files,
-            report.changed_files,
-            report.removed_files,
-            report.units,
-            report.embedded_units,
-            self.retriever.key(),
-            report.seconds,
-            index_path.display()
-        );
+        let started = Instant::now();
+        let mut display = ProgressDisplay::new();
+        display.line(&display.dim("Loading the models…"));
+        let mut service = SearchService::load(&self.models, false, self.threads)?;
+        let project = service.index(&self.path, &self.filter.filters(), &mut |event| display.show(&event))?;
+        let coverage = project
+            .open_store()?
+            .coverage(service.retriever().key(), project.scope.as_deref())?;
+        display.line(&display.good(&format!(
+            "Indexed {} functions in {} · {}",
+            Units::count(coverage.units),
+            project.target().display(),
+            Units::duration(started.elapsed().as_secs_f64())
+        )));
         Ok(())
     }
 }

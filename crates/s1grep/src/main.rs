@@ -1,13 +1,17 @@
 mod backend;
 mod commands;
 mod hub;
+mod indexer;
 mod model_locator;
 mod models;
+mod progress;
+mod project;
 mod report;
 mod runtime_library;
 mod searcher;
 mod server;
 mod service;
+mod settings;
 
 use clap::{Parser, Subcommand};
 
@@ -22,6 +26,7 @@ use commands::search::SearchArgs;
 use commands::serve::ServeCommand;
 use commands::setup::SetupCommand;
 use commands::skill::SkillCommand;
+use commands::status::StatusCommand;
 use commands::units::UnitsCommand;
 use runtime_library::RuntimeLibrary;
 
@@ -46,6 +51,8 @@ struct Cli {
 enum Command {
     /// Download the models (once, about 2.4 GB)
     Setup(SetupCommand),
+    /// Show the server, the models and how far each project is indexed
+    Status(StatusCommand),
     /// Check that the models, the server and the index are in place
     Doctor(DoctorCommand),
     /// Keep the models loaded so that searches answer in about a second
@@ -76,6 +83,7 @@ fn main() -> anyhow::Result<()> {
     match cli.command {
         None => cli.search.run(),
         Some(Command::Setup(command)) => command.run(),
+        Some(Command::Status(command)) => command.run(),
         Some(Command::Doctor(command)) => command.run(),
         Some(Command::Serve(command)) => command.run(),
         Some(Command::Mcp(command)) => command.run(),

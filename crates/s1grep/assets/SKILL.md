@@ -20,7 +20,7 @@ s1grep "export rows to csv" . --json
 - The path defaults to the current folder; a narrower folder limits the search.
 - Each result shows `file:start-end`, the function name, the judge's probability and its first lines. `--json` returns the
   same with the whole source of each function.
-- Tests and migrations are skipped; add `--include-tests` to search them.
+- Tests, migrations and dependency folders are skipped by the ignore rules (`~/.config/s1grep/ignore`, `.s1grepignore`).
 - Only Python files are searched.
 
 ## Setup

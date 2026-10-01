@@ -7,7 +7,8 @@ use serde_json::{Value, json};
 use crate::backend::SearchBackend;
 use crate::models::ModelDirectory;
 use crate::report::TextReport;
-use crate::service::SearchRequest;
+use crate::service::{FileFilters, SearchRequest};
+use crate::settings::{McpSettings, SearchSettings};
 
 #[derive(Args)]
 pub struct McpCommand {
@@ -28,13 +29,6 @@ struct McpServer {
 }
 
 impl McpServer {
-    const PROTOCOL_VERSIONS: [&'static str; 3] = ["2025-06-18", "2025-03-26", "2024-11-05"];
-    const TOOL: &'static str = "search_code";
-    const PREVIEW_LINES: usize = 40;
-    const INSTRUCTIONS: &'static str = "s1grep finds functions by what they do, from a description in English or \
-        Spanish, and returns their file, lines and code. Use it when you know the behaviour but not where it lives; \
-        use grep for exact names or strings. It reads Python repositories.";
-
     fn handle(&mut self, message: &Value) -> Option<Value> {
         let id = message.get("id").cloned();
         let method = message.get("method").and_then(Value::as_str).unwrap_or_default();
@@ -58,21 +52,21 @@ impl McpServer {
             .pointer("/params/protocolVersion")
             .and_then(Value::as_str)
             .unwrap_or_default();
-        let version = Self::PROTOCOL_VERSIONS
+        let version = McpSettings::PROTOCOL_VERSIONS
             .iter()
             .find(|known| **known == requested)
-            .unwrap_or(&Self::PROTOCOL_VERSIONS[0]);
+            .unwrap_or(&McpSettings::PROTOCOL_VERSIONS[0]);
         json!({
             "protocolVersion": version,
             "capabilities": {"tools": {}},
             "serverInfo": {"name": "s1grep", "version": env!("CARGO_PKG_VERSION")},
-            "instructions": Self::INSTRUCTIONS,
+            "instructions": McpSettings::INSTRUCTIONS,
         })
     }
 
     fn tools() -> Value {
         json!({"tools": [{
-            "name": Self::TOOL,
+            "name": McpSettings::TOOL,
             "title": "Search code by what it does",
             "description": "Find the functions that do what the query describes, in English or Spanish, ranked by a \
                 local judge model. Returns each function's file, lines, match probability and code. Python only.",
@@ -81,8 +75,7 @@ impl McpServer {
                 "properties": {
                     "query": {"type": "string", "description": "What the code does, e.g. \"where do we retry a failed payment\""},
                     "path": {"type": "string", "description": "Repository or folder to search; defaults to the project root"},
-                    "top": {"type": "integer", "minimum": 1, "maximum": SearchRequest::MAXIMUM_TOP, "description": "Results to return (default 5)"},
-                    "include_tests": {"type": "boolean", "description": "Also search tests/ and migrations/"}
+                    "top": {"type": "integer", "minimum": 1, "maximum": SearchSettings::MAXIMUM_TOP, "description": "Results to return (default 5)"}
                 },
                 "required": ["query"]
             },
@@ -91,7 +84,7 @@ impl McpServer {
     }
 
     fn call(&mut self, params: &Value) -> Value {
-        if params.get("name").and_then(Value::as_str) != Some(Self::TOOL) {
+        if params.get("name").and_then(Value::as_str) != Some(McpSettings::TOOL) {
             return Self::failure("unknown tool; the only tool is search_code");
         }
         let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
@@ -105,15 +98,14 @@ impl McpServer {
         let top = arguments
             .get("top")
             .and_then(Value::as_u64)
-            .map_or(SearchRequest::DEFAULT_TOP, |top| top as usize);
-        let include_tests = arguments.get("include_tests").and_then(Value::as_bool).unwrap_or(false);
-        let outcome =
-            SearchRequest::new(query, &root, top, 5, include_tests).and_then(|request| self.backend.search(&request));
+            .map_or(SearchSettings::TOP, |top| top as usize);
+        let outcome = SearchRequest::new(query, &root, top, SearchSettings::JUDGED, FileFilters::default())
+            .and_then(|request| self.backend.search(&request, &mut |_| {}));
         match outcome {
             Ok((response, _)) => {
                 let text = TextReport {
                     response: &response,
-                    preview_lines: Self::PREVIEW_LINES,
+                    preview_lines: McpSettings::PREVIEW_LINES,
                     color: false,
                 }
                 .render();

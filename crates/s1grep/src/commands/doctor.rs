@@ -1,10 +1,11 @@
 use std::path::PathBuf;
 
 use clap::Args;
-use s1_index::IndexStore;
 
 use crate::hub::Published;
-use crate::models::{CacheDirectory, ModelDirectory};
+use crate::models::{CacheDirectory, ModelDirectory, Retriever};
+use crate::progress::Units;
+use crate::project::Project;
 use crate::server::ServerClient;
 
 #[derive(Args)]
@@ -42,21 +43,23 @@ impl DoctorCommand {
             None => println!("  -  not running; searches load the models each time (`s1grep serve` avoids that)"),
         }
         println!("\nIndex");
-        match std::fs::canonicalize(&self.path) {
-            Ok(repository) => {
-                let index = CacheDirectory::index_for(&repository)?;
-                if index.is_file() {
-                    let functions = IndexStore::open(&index)?.unit_count()?;
+        match Project::locate(&self.path) {
+            Ok(project) => {
+                if CacheDirectory::project_index(&project.root)?.is_file() {
+                    let coverage = project
+                        .open_store()?
+                        .coverage(Retriever::Granite.key(), project.scope.as_deref())?;
                     println!(
-                        "  {}  {} functions for {}",
-                        Self::mark(true),
-                        functions,
-                        repository.display()
+                        "  {}  {} of {} functions indexed in {}",
+                        Self::mark(coverage.is_complete()),
+                        Units::count(coverage.embedded),
+                        Units::count(coverage.units),
+                        project.target().display()
                     );
                 } else {
                     println!(
                         "  -  {} is not indexed yet; the first search indexes it",
-                        repository.display()
+                        project.target().display()
                     );
                 }
             }

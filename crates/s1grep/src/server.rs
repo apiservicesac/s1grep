@@ -1,13 +1,14 @@
 use std::io::{BufRead, BufReader, Write};
 use std::net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream};
 use std::path::PathBuf;
-use std::time::Duration;
 
 use anyhow::{Context, bail};
 use serde::{Deserialize, Serialize};
 
 use crate::models::CacheDirectory;
+use crate::progress::IndexEvent;
 use crate::service::{SearchRequest, SearchResponse, SearchService};
+use crate::settings::ServerSettings;
 
 /// What a running server leaves in the cache so that searches can find it: its port and a secret only this user can
 /// read, so other accounts on the same machine cannot query the code it indexes.
@@ -21,7 +22,7 @@ pub struct ServerInfo {
 
 impl ServerInfo {
     fn path() -> anyhow::Result<PathBuf> {
-        Ok(CacheDirectory::root()?.join("server.json"))
+        Ok(CacheDirectory::root()?.join(ServerSettings::INFO_FILE))
     }
 
     pub fn read() -> Option<Self> {
@@ -64,8 +65,11 @@ struct Envelope {
     request: Option<SearchRequest>,
 }
 
+/// One line from the server: progress while it indexes, then the response or an error.
 #[derive(Serialize, Deserialize)]
 struct Reply {
+    #[serde(default)]
+    progress: Option<IndexEvent>,
     response: Option<SearchResponse>,
     error: Option<String>,
 }
@@ -118,37 +122,52 @@ impl SearchServer {
     }
 
     fn answer(&mut self, stream: TcpStream) -> anyhow::Result<()> {
-        stream.set_read_timeout(Some(Duration::from_secs(10)))?;
+        stream.set_read_timeout(Some(ServerSettings::REQUEST_TIMEOUT))?;
         let mut line = String::new();
         BufReader::new(&stream).read_line(&mut line)?;
         let envelope: Envelope = serde_json::from_str(&line).context("malformed request")?;
         let reply = if envelope.token != self.info.token {
             Reply {
+                progress: None,
                 response: None,
                 error: Some("wrong token".to_string()),
             }
         } else if let Some(request) = envelope.request {
             let started = std::time::Instant::now();
-            match self.service.search(&request) {
+            let mut writer = &stream;
+            let mut send_progress = |event: IndexEvent| {
+                let line = Reply {
+                    progress: Some(event),
+                    response: None,
+                    error: None,
+                };
+                if let Ok(text) = serde_json::to_string(&line) {
+                    let _ = writer.write_all(text.as_bytes()).and_then(|()| writer.write_all(b"\n"));
+                }
+            };
+            match self.service.search(&request, &mut send_progress) {
                 Ok(response) => {
                     eprintln!(
                         "{:.2} s  {}  {:?}",
                         started.elapsed().as_secs_f64(),
-                        request.root.display(),
+                        request.target.display(),
                         request.query
                     );
                     Reply {
+                        progress: None,
                         response: Some(response),
                         error: None,
                     }
                 }
                 Err(error) => Reply {
+                    progress: None,
                     response: None,
                     error: Some(format!("{error:#}")),
                 },
             }
         } else {
             Reply {
+                progress: None,
                 response: None,
                 error: None,
             }
@@ -172,24 +191,30 @@ pub struct ServerClient {
 }
 
 impl ServerClient {
-    const CONNECT_TIMEOUT: Duration = Duration::from_millis(300);
-
     /// The running server, if its file exists, it answers, and it is the same version as this binary.
     pub fn connect() -> Option<Self> {
         let info = ServerInfo::read()?;
         let client = Self { info };
-        client.exchange(None).ok()?;
+        client.exchange(None, &mut |_| {}).ok()?;
         (client.info.version == env!("CARGO_PKG_VERSION")).then_some(client)
     }
 
-    pub fn search(&self, request: &SearchRequest) -> anyhow::Result<SearchResponse> {
-        self.exchange(Some(request.clone()))?
+    pub fn search(
+        &self,
+        request: &SearchRequest,
+        progress: &mut dyn FnMut(IndexEvent),
+    ) -> anyhow::Result<SearchResponse> {
+        self.exchange(Some(request.clone()), progress)?
             .context("the server sent no results")
     }
 
-    fn exchange(&self, request: Option<SearchRequest>) -> anyhow::Result<Option<SearchResponse>> {
+    fn exchange(
+        &self,
+        request: Option<SearchRequest>,
+        progress: &mut dyn FnMut(IndexEvent),
+    ) -> anyhow::Result<Option<SearchResponse>> {
         let address = SocketAddr::from((Ipv4Addr::LOCALHOST, self.info.port));
-        let stream = TcpStream::connect_timeout(&address, Self::CONNECT_TIMEOUT)?;
+        let stream = TcpStream::connect_timeout(&address, ServerSettings::CONNECT_TIMEOUT)?;
         let mut writer = &stream;
         let envelope = Envelope {
             token: self.info.token.clone(),
@@ -197,12 +222,17 @@ impl ServerClient {
         };
         writer.write_all(serde_json::to_string(&envelope)?.as_bytes())?;
         writer.write_all(b"\n")?;
-        let mut line = String::new();
-        BufReader::new(&stream).read_line(&mut line)?;
-        let reply: Reply = serde_json::from_str(&line).context("malformed reply from s1grep serve")?;
-        if let Some(error) = reply.error {
-            bail!("{error}");
+        for line in BufReader::new(&stream).lines() {
+            let reply: Reply = serde_json::from_str(&line?).context("malformed reply from s1grep serve")?;
+            if let Some(event) = reply.progress {
+                progress(event);
+                continue;
+            }
+            if let Some(error) = reply.error {
+                bail!("{error}");
+            }
+            return Ok(reply.response);
         }
-        Ok(reply.response)
+        bail!("s1grep serve closed the connection")
     }
 }

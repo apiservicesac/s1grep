@@ -44,7 +44,11 @@ impl RankFusion {
     /// first `judge_scores.len()` candidates were judged, the rest keep their retriever position.
     pub fn order(candidate_count: usize, judge_scores: &[f64], weights: FusionWeights) -> Vec<usize> {
         let mut judge_order: Vec<usize> = (0..judge_scores.len()).collect();
-        judge_order.sort_by(|&left, &right| judge_scores[right].total_cmp(&judge_scores[left]).then(left.cmp(&right)));
+        judge_order.sort_by(|&left, &right| {
+            judge_scores[right]
+                .total_cmp(&judge_scores[left])
+                .then(left.cmp(&right))
+        });
         let mut judge_rank = vec![None; candidate_count];
         for (rank, &index) in judge_order.iter().enumerate() {
             judge_rank[index] = Some(rank + 1);
@@ -67,7 +71,14 @@ mod tests {
 
     #[test]
     fn a_confident_judge_moves_its_choice_to_the_top() {
-        let order = RankFusion::order(4, &[0.1, 0.2, 0.9], FusionWeights { judge: 0.6, smoothing: 1.0 });
+        let order = RankFusion::order(
+            4,
+            &[0.1, 0.2, 0.9],
+            FusionWeights {
+                judge: 0.6,
+                smoothing: 1.0,
+            },
+        );
         assert_eq!(order[0], 2);
         assert_eq!(order[3], 3);
     }

@@ -21,6 +21,16 @@ impl CodeUnit {
         format!("{}\n{}\n\n{}", self.path, self.name, self.source)
     }
 
+    /// Fingerprint of the name and source, so the same function shares one vector across projects even when its
+    /// folder differs (the vector was computed with the first path seen; the path only nudges it).
+    pub fn content_key(&self) -> String {
+        let mut hasher = blake3::Hasher::new();
+        hasher.update(self.name.as_bytes());
+        hasher.update(b"\n");
+        hasher.update(self.source.as_bytes());
+        hasher.finalize().to_hex()[..32].to_string()
+    }
+
     /// Text the judge reads as its state.
     pub fn judge_state(&self) -> String {
         let source: String = self.source.chars().take(Self::JUDGE_SOURCE_CHARACTERS).collect();
@@ -29,6 +39,9 @@ impl CodeUnit {
 
     /// The same unit seen under another root, e.g. with the repository folder in front of the path.
     pub fn with_path_prefix(&self, prefix: &str) -> Self {
-        Self { path: format!("{prefix}/{}", self.path), ..self.clone() }
+        Self {
+            path: format!("{prefix}/{}", self.path),
+            ..self.clone()
+        }
     }
 }

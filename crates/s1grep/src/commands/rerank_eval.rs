@@ -10,7 +10,6 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 
 use crate::models::ModelDirectory;
-use crate::searcher::Searcher;
 
 /// One question with its retriever candidates already chosen, best first, and the index of the right one (none when the retriever missed it).
 #[derive(Deserialize)]
@@ -74,7 +73,7 @@ impl RerankEvalCommand {
         if let Some(limit) = self.limit {
             questions.truncate(limit);
         }
-        let bundle = ModelBundle::open(self.models.bundle(ModelDirectory::JUDGE_BUNDLE)?)?;
+        let bundle = ModelBundle::open(self.models.bundle(crate::settings::ModelSettings::JUDGE_BUNDLE)?)?;
         let mut rows = Vec::new();
         for &max_len in &self.max_len {
             let mut options = EngineOptions {
@@ -118,7 +117,7 @@ impl RerankEvalCommand {
                 .collect();
             let started = Instant::now();
             let asked = QuestionSet::from_json(&json!({
-                "answers": {"type": "noul", "instructions": format!("{}{}", Searcher::TEMPLATE, question.text)}
+                "answers": {"type": "noul", "instructions": format!("{}{}", crate::settings::SearchSettings::QUESTION_TEMPLATE, question.text)}
             }))?;
             let chunk = if self.batch == 0 { count.max(1) } else { self.batch };
             let mut scores = Vec::with_capacity(count);

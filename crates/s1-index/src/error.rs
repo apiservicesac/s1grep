@@ -8,4 +8,6 @@ pub enum IndexError {
     Database(#[from] rusqlite::Error),
     #[error("parser error: {0}")]
     Parser(String),
+    #[error("invalid exclude pattern {0}")]
+    Pattern(String),
 }

@@ -54,7 +54,14 @@ impl PythonExtractor {
         }
     }
 
-    fn push_unit(&self, units: &mut Vec<CodeUnit>, relative_path: &str, source: &str, function: Node, class: Option<&str>) {
+    fn push_unit(
+        &self,
+        units: &mut Vec<CodeUnit>,
+        relative_path: &str,
+        source: &str,
+        function: Node,
+        class: Option<&str>,
+    ) {
         let Some(function_name) = Self::field_text(function, "name", source) else {
             return;
         };
@@ -86,6 +93,7 @@ impl PythonExtractor {
     }
 
     fn field_text(node: Node, field: &str, source: &str) -> Option<String> {
-        node.child_by_field_name(field).map(|child| source[child.start_byte()..child.end_byte()].to_string())
+        node.child_by_field_name(field)
+            .map(|child| source[child.start_byte()..child.end_byte()].to_string())
     }
 }

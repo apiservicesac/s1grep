@@ -29,12 +29,9 @@ impl Retriever {
         }
     }
 
-    /// Candidates the judge reads by default: 5 costs half of 10 on a CPU for 4 fewer right answers in 100 on dev.
+    /// Candidates the judge reads by default.
     pub fn default_judged(self) -> usize {
-        match self {
-            Self::Granite => 5,
-            Self::Qwen3 => 5,
-        }
+        crate::settings::SearchSettings::JUDGED
     }
 }
 
@@ -47,8 +44,6 @@ pub struct ModelDirectory {
 }
 
 impl ModelDirectory {
-    pub const JUDGE_BUNDLE: &'static str = "s1-code-v3-onnx";
-
     /// The folder in use: `--models`, `S1GREP_MODELS`, or the cache.
     pub fn resolved(&self) -> anyhow::Result<PathBuf> {
         match &self.folder {
@@ -85,11 +80,29 @@ impl CacheDirectory {
         Ok(PathBuf::from(home).join(".cache").join("s1grep"))
     }
 
-    /// One index per repository, named after a hash of its absolute path, so indexing never writes into the repo.
-    pub fn index_for(repository: &std::path::Path) -> anyhow::Result<PathBuf> {
-        let absolute =
-            std::fs::canonicalize(repository).with_context(|| format!("resolving {}", repository.display()))?;
-        let key = s1_index::content_hash(absolute.to_string_lossy().as_bytes());
-        Ok(Self::root()?.join("indexes").join(format!("{}.sqlite", &key[..16])))
+    /// One index per project, named after a hash of its absolute path, so indexing never writes into the project.
+    pub fn project_index(root: &std::path::Path) -> anyhow::Result<PathBuf> {
+        let key = s1_index::content_hash(root.to_string_lossy().as_bytes());
+        Ok(Self::root()?.join("projects").join(format!("{}.sqlite", &key[..16])))
+    }
+
+    /// Vectors shared by every project, keyed by the content they were computed from.
+    pub fn vectors() -> anyhow::Result<PathBuf> {
+        Ok(Self::root()?.join("vectors.sqlite"))
+    }
+
+    /// Every project index in the cache.
+    pub fn project_indexes() -> anyhow::Result<Vec<PathBuf>> {
+        let folder = Self::root()?.join("projects");
+        let Ok(entries) = std::fs::read_dir(&folder) else {
+            return Ok(Vec::new());
+        };
+        let mut paths: Vec<PathBuf> = entries
+            .filter_map(Result::ok)
+            .map(|entry| entry.path())
+            .filter(|path| path.extension().is_some_and(|extension| extension == "sqlite"))
+            .collect();
+        paths.sort();
+        Ok(paths)
     }
 }
