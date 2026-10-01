@@ -2,7 +2,7 @@
 
 All notable changes to `s1grep` are documented here. Versions follow [Semantic Versioning](https://semver.org).
 
-## [Unreleased]
+## [0.2.6] — 2026-10-01
 
 ### Added
 - JavaScript, TypeScript (with TSX), Go, Java, PHP, Rust, Ruby and C#, each read through a tree-sitter query
