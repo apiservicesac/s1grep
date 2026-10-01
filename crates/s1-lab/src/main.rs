@@ -8,6 +8,7 @@ use s1grep::runtime_library::RuntimeLibrary;
 use commands::bench::BenchCommand;
 use commands::decide::DecideCommand;
 use commands::eval::EvalCommand;
+use commands::profile::ProfileCommand;
 use commands::rerank_eval::RerankEvalCommand;
 use commands::units::UnitsCommand;
 
@@ -31,6 +32,8 @@ enum LabCommand {
     Bench(BenchCommand),
     /// Run the judge on JSON states read from stdin
     Decide(DecideCommand),
+    /// Time the parts of a search that do not use the models, on an existing index
+    Profile(ProfileCommand),
 }
 
 fn main() -> anyhow::Result<()> {
@@ -41,5 +44,6 @@ fn main() -> anyhow::Result<()> {
         LabCommand::Units(command) => command.run(),
         LabCommand::Bench(command) => command.run(),
         LabCommand::Decide(command) => command.run(),
+        LabCommand::Profile(command) => command.run(),
     }
 }

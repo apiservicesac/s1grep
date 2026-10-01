@@ -1,7 +1,7 @@
 # 0002. The background process owns freshness and in-memory indexes
 
 - Status: Accepted (2026-10-01)
-- Implementation: Stage 2.
+- Implementation: done in stage 2 (0.2.5); a file watcher comes in stage 5.
 
 ## Context
 

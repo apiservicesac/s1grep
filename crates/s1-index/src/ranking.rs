@@ -1,22 +1,5 @@
 use crate::settings::FusionTable;
 
-/// Nearest units to a query vector by cosine similarity (vectors are unit length, so a dot product).
-pub struct VectorRanking;
-
-impl VectorRanking {
-    /// Indexes of the `limit` most similar vectors, best first.
-    pub fn top(query: &[f32], vectors: &[&[f32]], limit: usize) -> Vec<(usize, f32)> {
-        let mut scored: Vec<(usize, f32)> = vectors
-            .iter()
-            .enumerate()
-            .map(|(index, vector)| (index, vector.iter().zip(query).map(|(left, right)| left * right).sum()))
-            .collect();
-        scored.sort_by(|left, right| right.1.total_cmp(&left.1).then(left.0.cmp(&right.0)));
-        scored.truncate(limit);
-        scored
-    }
-}
-
 /// Reciprocal-rank fusion of the retriever's order and the judge's order, with the weights chosen on the dev exam.
 #[derive(Debug, Clone, Copy)]
 pub struct FusionWeights {

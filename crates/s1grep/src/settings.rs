@@ -46,9 +46,9 @@ impl IndexSettings {
     /// answer says how many functions could not be searched yet.
     pub const OUTLINE_BEFORE_ANSWERING: Duration = Duration::from_secs(10);
     /// Functions the background process embeds between two looks for new searches (a few seconds of work).
-    pub const BACKGROUND_BATCH: usize = 8;
+    pub const BACKGROUND_BATCH: usize = 4;
     /// Outlines the background process embeds per step; short, so a search waits at most a second or two.
-    pub const BACKGROUND_OUTLINE_BATCH: usize = 32;
+    pub const BACKGROUND_OUTLINE_BATCH: usize = 16;
     /// Functions the background process fetches from the index at a time, so it does not query it for every batch.
     pub const BACKGROUND_QUEUE: usize = 512;
     pub const BACKGROUND_OUTLINE_QUEUE: usize = 2048;
@@ -56,6 +56,10 @@ impl IndexSettings {
     pub const ESTIMATE_AFTER: usize = 64;
     /// Consecutive failed background steps before a project's indexing job is dropped.
     pub const JOB_ATTEMPTS: u32 = 3;
+    /// Projects the background process keeps open, with their vectors in memory; the least recently used closes.
+    pub const OPEN_PROJECTS: usize = 4;
+    /// A starting background process resumes indexing projects searched within this time.
+    pub const RESUME_WITHIN: Duration = Duration::from_secs(24 * 60 * 60);
     /// Files written to the index per transaction while reading a project.
     pub const SCAN_COMMIT_EVERY: usize = 500;
     /// Files read between two progress reports.
@@ -84,6 +88,8 @@ impl ServerSettings {
     pub const LOG_FILE: &'static str = "server.log";
     /// Pause after a failed background indexing step before the next try.
     pub const INDEX_RETRY_PAUSE: Duration = Duration::from_secs(5);
+    /// Background indexing pauses this long after each connection, so the search behind a ping goes first.
+    pub const YIELD_AFTER_REQUEST: Duration = Duration::from_millis(1500);
 }
 
 /// Terminal output.

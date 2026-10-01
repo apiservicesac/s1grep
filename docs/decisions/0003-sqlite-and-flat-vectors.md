@@ -1,7 +1,7 @@
 # 0003. SQLite as the source of truth, a flat vector matrix in memory
 
 - Status: Accepted (2026-10-01)
-- Implementation: Stage 2.
+- Implementation: done in stage 2 (0.2.5).
 
 ## Context
 

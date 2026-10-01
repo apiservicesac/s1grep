@@ -45,16 +45,22 @@ s1grep "query" PATH
   └─ SearchService::search
        ├─ Project::locate      root = highest ancestor with an index, else nearest .git, else PATH; scope = subfolder
        ├─ IndexLock            per-project file lock; if another process holds it, search what is indexed
-       ├─ Indexer::scan        walk (ignore files), size/mtime gate, blake3, tree-sitter → units in SQLite
+       ├─ Indexer::scan        parallel walk (ignore files), size/mtime gate, blake3, tree-sitter → units
        ├─ few units missing    embed their whole source now
        ├─ many units missing   embed outlines (path, name, first lines) of the scope now, schedule the rest
-       ├─ IndexStore::searchable_units   every unit with its whole-source vector, else its outline vector
-       └─ Searcher::search     embed query → cosine top 25 → judge reads top 5 → rank fusion
+       ├─ ProjectSession       the project's open catalog and its vectors in memory
+       └─ Searcher::search     embed query → nearest 25 in the VectorIndex → read their sources → judge reads
+                               the top 5 → rank fusion
 ```
 
+The background process keeps up to four recently searched projects open (`ProjectSession`): the catalog connection
+and a `VectorIndex`, all vectors of the project in one matrix, reloaded only when this process or another one changed
+them (`PRAGMA data_version`). A search ranks that matrix, then reads the source of its 25 candidates only.
+
 Between requests the server calls `SearchService::index_step`, which embeds short batches of the oldest indexing job:
-first the outlines of the whole project, then whole sources. The process exits after 30 idle minutes once no job is
-left.
+first the outlines of the whole project, then whole sources. After each request it yields for a moment, so the search
+that follows a ping never queues behind a batch. On start it resumes the jobs of projects searched in the last day.
+The process exits after 30 idle minutes once no job is left.
 
 ## Data on disk
 

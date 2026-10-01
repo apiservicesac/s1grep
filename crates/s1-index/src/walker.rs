@@ -1,7 +1,8 @@
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
-use ignore::WalkBuilder;
 use ignore::overrides::OverrideBuilder;
+use ignore::{DirEntry, WalkBuilder, WalkState};
 
 use crate::error::IndexError;
 
@@ -70,32 +71,48 @@ impl SourceWalker {
                     .map_err(|error| IndexError::Pattern(error.to_string()))?,
             );
         }
-        let mut files: Vec<SourceFile> = builder
-            .build()
-            .filter_map(Result::ok)
-            .filter(|entry| entry.file_type().is_some_and(|kind| kind.is_file()))
-            .filter(|entry| {
-                entry.path().extension().is_some_and(|extension| {
-                    self.options
-                        .extensions
-                        .iter()
-                        .any(|wanted| extension == wanted.as_str())
-                })
+        // Folders are walked in parallel; only accepted files touch the shared list.
+        let found: Mutex<Vec<SourceFile>> = Mutex::new(Vec::new());
+        builder.build_parallel().run(|| {
+            let found = &found;
+            Box::new(move |entry| {
+                if let Ok(entry) = entry
+                    && let Some(file) = self.accept(&entry)
+                {
+                    found.lock().expect("walker threads do not panic").push(file);
+                }
+                WalkState::Continue
             })
-            .filter(|entry| {
-                entry
-                    .metadata()
-                    .is_ok_and(|metadata| metadata.len() <= self.options.maximum_file_bytes)
-            })
-            .filter_map(|entry| {
-                Self::relative_to(&self.root, entry.path()).map(|relative| SourceFile {
-                    absolute: entry.path().to_path_buf(),
-                    relative,
-                })
-            })
-            .collect();
+        });
+        let mut files = found.into_inner().expect("walker threads do not panic");
         files.sort_by(|left, right| left.relative.cmp(&right.relative));
         Ok(files)
+    }
+
+    /// The source file behind `entry`, if it is a file with a wanted extension and not too large to be code.
+    fn accept(&self, entry: &DirEntry) -> Option<SourceFile> {
+        if !entry.file_type().is_some_and(|kind| kind.is_file()) {
+            return None;
+        }
+        let extension = entry.path().extension()?;
+        if !self
+            .options
+            .extensions
+            .iter()
+            .any(|wanted| extension == wanted.as_str())
+        {
+            return None;
+        }
+        if !entry
+            .metadata()
+            .is_ok_and(|metadata| metadata.len() <= self.options.maximum_file_bytes)
+        {
+            return None;
+        }
+        Some(SourceFile {
+            absolute: entry.path().to_path_buf(),
+            relative: Self::relative_to(&self.root, entry.path())?,
+        })
     }
 
     fn relative_to(root: &Path, path: &Path) -> Option<String> {

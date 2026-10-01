@@ -2,14 +2,16 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use anyhow::Context;
-use s1_index::{PathExcludes, WalkOptions};
+use s1_index::{PathExcludes, VectorRow, WalkOptions};
 use serde::{Deserialize, Serialize};
 
+use crate::cache::{ProjectFolder, ProjectInfo};
 use crate::indexer::{Indexer, Pass};
 use crate::models::{ModelDirectory, Retriever};
 use crate::progress::IndexEvent;
 use crate::project::{IndexLock, Project};
 use crate::searcher::{FoundBy, Searcher};
+use crate::session::ProjectSessions;
 use crate::settings::{ConfigDirectory, IndexSettings, SearchSettings};
 
 /// Which files a search reads: the ignore files decide what is indexed, and one-off patterns from the caller hide
@@ -147,6 +149,7 @@ impl IndexingJob {
 pub struct SearchService {
     searcher: Searcher,
     retriever: Retriever,
+    sessions: ProjectSessions,
     jobs: Vec<IndexingJob>,
 }
 
@@ -156,6 +159,7 @@ impl SearchService {
         Ok(Self {
             searcher: Searcher::load(models, retriever, with_judge, threads)?,
             retriever,
+            sessions: ProjectSessions::default(),
             jobs: Vec::new(),
         })
     }
@@ -167,8 +171,8 @@ impl SearchService {
     ) -> anyhow::Result<SearchResponse> {
         let project = Project::locate(&request.target)?;
         let scope = project.scope.as_deref();
-        let mut store = project.open_store()?;
         project.record_use()?;
+        let session = self.sessions.get(&project)?;
         let has_job = self.jobs.iter().any(|job| job.project.root == project.root);
         let lock = if has_job {
             None
@@ -182,16 +186,16 @@ impl SearchService {
             }
         };
         let whole = Pass::Whole.key(self.retriever);
-        let outline = Pass::Outline.key(self.retriever);
+        let mut total_pending = 0;
         if has_job || lock.is_some() {
             let mut indexer = Indexer {
-                store: &mut store,
+                store: &mut session.store,
                 retriever: self.retriever,
             };
-            indexer.scan(&project.root, &request.filters.walk_options()?, progress)?;
+            let report = indexer.scan(&project.root, &request.filters.walk_options()?, progress)?;
             let pending = indexer.store.pending_count(&whole, scope)?;
-            if pending > 0 && pending <= IndexSettings::INDEX_BEFORE_ANSWERING {
-                indexer.embed(&mut self.searcher.embedder, Pass::Whole, scope, progress)?;
+            let embedded = if pending > 0 && pending <= IndexSettings::INDEX_BEFORE_ANSWERING {
+                indexer.embed(&mut self.searcher.embedder, Pass::Whole, scope, progress)?
             } else if pending > 0 && !has_job {
                 // Only the first search waits, briefly; later ones answer at once while the background works.
                 indexer.embed_for(
@@ -200,27 +204,36 @@ impl SearchService {
                     scope,
                     Some(IndexSettings::OUTLINE_BEFORE_ANSWERING),
                     progress,
-                )?;
-            }
+                )?
+            } else {
+                0
+            };
             // Whatever is still missing, here or elsewhere in the project, is left to the background process.
-            let total = indexer.store.pending_count(&whole, None)?;
-            if total > 0 {
-                self.schedule(&project, lock, total);
+            total_pending = indexer.store.pending_count(&whole, None)?;
+            if report.changed > 0 || report.removed > 0 || embedded > 0 {
+                session.mark_changed();
             }
         }
-        let coverage = store.coverage(&whole, scope)?;
+        let coverage = session.store.coverage(&whole, scope)?;
         let excludes = PathExcludes::new(&project.root, &request.filters.excludes)?;
-        let mut units = store.searchable_units(&whole, &outline, scope)?;
-        units.retain(|searchable| !excludes.excludes(&searchable.stored.unit.path));
+        let keep = |row: &VectorRow| {
+            scope.is_none_or(|scope| row.path == scope || row.path.starts_with(&format!("{scope}/")))
+                && !excludes.excludes(&row.path)
+        };
         let judged = if self.searcher.has_judge() {
             request.judge_top
         } else {
             0
         };
+        let (vectors, store) = session.vectors(self.retriever)?;
+        let searchable = vectors.rows().iter().filter(|row| keep(row)).count();
         let started = Instant::now();
-        let hits = self.searcher.search(&request.query, &units, judged)?;
+        let hits = self.searcher.search(&request.query, vectors, keep, store, judged)?;
         let search_seconds = started.elapsed().as_secs_f64();
         let judged = hits.iter().filter(|hit| hit.judge.is_some()).count();
+        if total_pending > 0 {
+            self.schedule(&project, lock, total_pending);
+        }
         let results = hits
             .into_iter()
             .take(request.top)
@@ -243,7 +256,7 @@ impl SearchService {
             scope: project.scope.clone(),
             functions: coverage.units,
             indexed: coverage.embedded,
-            searchable: units.len(),
+            searchable,
             indexing: self
                 .jobs
                 .iter()
@@ -279,6 +292,32 @@ impl SearchService {
         }
     }
 
+    /// Resumes background indexing of projects searched recently whose vectors are not complete, so that a restart
+    /// (a crash, an update, `s1grep stop`) does not leave them half done until someone searches there again.
+    pub fn resume_pending(&mut self) -> anyhow::Result<usize> {
+        let since = ProjectInfo::now().saturating_sub(IndexSettings::RESUME_WITHIN.as_secs());
+        let whole = Pass::Whole.key(self.retriever);
+        let mut resumed = 0;
+        for folder in ProjectFolder::all()? {
+            let Some(info) = folder.info().filter(|info| info.last_used >= since) else {
+                continue;
+            };
+            if !Path::new(&info.root).is_dir() {
+                continue;
+            }
+            let project = Project::at_root(Path::new(&info.root))?;
+            let Ok(lock) = IndexLock::acquire(&project.folder)? else {
+                continue;
+            };
+            let total = self.sessions.get(&project)?.store.pending_count(&whole, None)?;
+            if total > 0 {
+                self.schedule(&project, Some(lock), total);
+                resumed += 1;
+            }
+        }
+        Ok(resumed)
+    }
+
     pub fn has_indexing(&self) -> bool {
         !self.jobs.is_empty()
     }
@@ -310,7 +349,8 @@ impl SearchService {
         let Some(job) = self.jobs.first_mut() else {
             return Ok(());
         };
-        let mut store = job.project.open_store()?;
+        let session = self.sessions.get(&job.project)?;
+        let store = &mut session.store;
         let key = job.pass.key(self.retriever);
         if job.queue.is_empty() {
             let batch = match job.pass {
@@ -343,6 +383,7 @@ impl SearchService {
         let vectors = self.searcher.embedder.embed_documents(&texts)?;
         let rows: Vec<(String, Vec<f32>)> = batch.iter().map(|stored| stored.content.clone()).zip(vectors).collect();
         store.store_vectors(&key, &rows)?;
+        session.mark_changed();
         if job.pass == Pass::Whole {
             job.first_step.get_or_insert_with(Instant::now);
             job.done += rows.len();

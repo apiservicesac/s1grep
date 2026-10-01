@@ -7,6 +7,7 @@ use crate::error::IndexError;
 use crate::schema::SchemaMigrations;
 use crate::settings::IndexLimits;
 use crate::unit::CodeUnit;
+use crate::vector_index::VectorRow;
 
 /// A unit together with its row id in the index and the fingerprint of the text the retriever embeds.
 #[derive(Debug, Clone)]
@@ -14,14 +15,6 @@ pub struct StoredUnit {
     pub id: i64,
     pub content: String,
     pub unit: CodeUnit,
-}
-
-/// A unit with the vector a search compares, and whether that vector comes from its whole source or only its outline.
-#[derive(Debug, Clone)]
-pub struct SearchableUnit {
-    pub stored: StoredUnit,
-    pub vector: Vec<f32>,
-    pub whole: bool,
 }
 
 /// What the index knows about a file, to skip reading files that did not change.
@@ -259,32 +252,53 @@ impl IndexStore {
         Ok(())
     }
 
-    /// Units under `scope` with their best vector: the whole-source one from `model`, else the outline one from
-    /// `outline_model`. Units with neither are left out.
-    pub fn searchable_units(
-        &self,
-        model: &str,
-        outline_model: &str,
-        scope: Option<&str>,
-    ) -> Result<Vec<SearchableUnit>, IndexError> {
-        let mut statement = self.connection.prepare(&format!(
-            "SELECT units.id, path, name, start_line, end_line, source, units.content,
-                    COALESCE(whole.vector, outline.vector), whole.vector IS NOT NULL FROM units
+    /// Every unit of the project that has a vector, with its best one: the whole-source vector from `space`, else
+    /// the outline vector from `outline_space`. No sources are read: they are fetched for the final candidates only.
+    pub fn vector_rows(&self, space: &str, outline_space: &str) -> Result<Vec<(VectorRow, Vec<f32>)>, IndexError> {
+        let mut statement = self.connection.prepare(
+            "SELECT units.id, path, COALESCE(whole.vector, outline.vector), whole.vector IS NOT NULL FROM units
              LEFT JOIN shared.vectors AS whole ON whole.content = units.content AND whole.model = ?1
              LEFT JOIN shared.vectors AS outline ON outline.content = units.content AND outline.model = ?2
-             WHERE (whole.vector IS NOT NULL OR outline.vector IS NOT NULL)
-             AND (?3 IS NULL OR {})
+             WHERE whole.vector IS NOT NULL OR outline.vector IS NOT NULL
              ORDER BY units.id",
-            ScopeFilter::matches(3)
-        ))?;
-        let rows = statement.query_map(params![model, outline_model, scope], |row| {
-            Ok(SearchableUnit {
-                stored: Self::stored(row)?,
-                vector: Self::vector(&row.get::<_, Vec<u8>>(7)?),
-                whole: row.get(8)?,
-            })
+        )?;
+        let rows = statement.query_map(params![space, outline_space], |row| {
+            Ok((
+                VectorRow {
+                    unit_id: row.get(0)?,
+                    path: row.get(1)?,
+                    whole: row.get(3)?,
+                },
+                Self::vector(&row.get::<_, Vec<u8>>(2)?),
+            ))
         })?;
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
+    /// The units with these ids, in the same order; ids no longer in the index are left out.
+    pub fn units_by_ids(&self, ids: &[i64]) -> Result<Vec<StoredUnit>, IndexError> {
+        let mut statement = self
+            .connection
+            .prepare_cached("SELECT id, path, name, start_line, end_line, source, content FROM units WHERE id = ?1")?;
+        let mut units = Vec::with_capacity(ids.len());
+        for id in ids {
+            if let Some(unit) = statement.query_row([id], Self::stored).optional()? {
+                units.push(unit);
+            }
+        }
+        Ok(units)
+    }
+
+    /// Changes whenever another connection commits to the catalog or the vector cache, so a copy kept in memory
+    /// knows when to reload.
+    pub fn data_version(&self) -> Result<(i64, i64), IndexError> {
+        let catalog = self
+            .connection
+            .query_row("PRAGMA main.data_version", [], |row| row.get(0))?;
+        let vectors = self
+            .connection
+            .query_row("PRAGMA shared.data_version", [], |row| row.get(0))?;
+        Ok((catalog, vectors))
     }
 
     pub fn unit_count(&self) -> Result<usize, IndexError> {
@@ -510,8 +524,8 @@ mod tests {
             .unwrap();
         assert_eq!(store.pending_count("new", None).unwrap(), 0);
         assert_eq!(store.pending_count("old", None).unwrap(), 2);
-        let units = store.searchable_units("new", "outline", None).unwrap();
-        assert_eq!(units[0].vector, vec![3.0]);
-        assert_eq!(units[1].vector, vec![2.0]);
+        let rows = store.vector_rows("new", "outline").unwrap();
+        assert_eq!(rows[0].1, vec![3.0]);
+        assert_eq!(rows[1].1, vec![2.0]);
     }
 }

@@ -26,7 +26,12 @@ impl ServeCommand {
     pub fn run(self) -> anyhow::Result<()> {
         let started = Instant::now();
         let lock = SearchServer::acquire_lock()?;
-        let service = SearchService::load(&self.models, true, self.threads)?;
+        let mut service = SearchService::load(&self.models, true, self.threads)?;
+        match service.resume_pending() {
+            Ok(0) => {}
+            Ok(resumed) => eprintln!("s1grep: resuming the indexing of {resumed} recently searched projects"),
+            Err(error) => eprintln!("s1grep: could not resume indexing: {error:#}"),
+        }
         let idle = self.background.then_some(ServerSettings::IDLE);
         let server = SearchServer::start(service, lock, self.port, idle)?;
         eprintln!(

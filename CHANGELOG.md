@@ -16,6 +16,12 @@ All notable changes to `s1grep` are documented here. Versions follow [Semantic V
 - The README shows how the judge, trained on Python, does on other languages.
 
 ### Changed
+- The background process keeps recently searched projects open with their vectors in memory and reads the source of
+  the final candidates only; files are walked in parallel (5,900 files: 160 ms to 23 ms). A warm search now spends
+  0.2–0.9 s outside the models, most of a search being the judge.
+- A search no longer waits behind background indexing: the process yields for a moment after each request, and its
+  batches are shorter. In a 16,000-function repository while indexing, searches went from 4.2 s to 2.0–2.7 s.
+- A starting background process resumes indexing the projects searched in the last 24 hours that are not complete.
 - Each project's index lives in its own folder, `projects/<key>/` with `project.json` (the real path and last use),
   `catalog.sqlite` and its lock. Indexes and vectors of earlier versions move there on first use, without re-indexing.
 - The first search in a large project waits at most about 10 s for outline vectors and answers with what is ready,

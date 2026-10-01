@@ -4,6 +4,7 @@ use std::time::Instant;
 
 use anyhow::{Context, bail};
 use clap::Args;
+use s1_index::VectorIndex;
 use serde::Deserialize;
 use serde_json::json;
 
@@ -118,7 +119,7 @@ impl EvalCommand {
             let pass = if self.outline { Pass::Outline } else { Pass::Whole };
             indexer.embed(&mut searcher.embedder, pass, None, &mut |_| {})?;
             let key = pass.key(self.retriever);
-            let units = store.searchable_units(&key, &key, None)?;
+            let index = VectorIndex::new(store.vector_rows(&key, &key)?);
             for question in &questions {
                 let answers: Vec<(String, String)> = std::iter::once((&question.path, &question.function))
                     .chain(
@@ -140,7 +141,7 @@ impl EvalCommand {
                         .any(|(expected_path, expected_name)| expected_path == path && expected_name == name)
                 };
                 let search_started = Instant::now();
-                let hits = searcher.search(&question.text, &units, judged)?;
+                let hits = searcher.search(&question.text, &index, |_| true, &store, judged)?;
                 search_seconds.push(search_started.elapsed().as_secs_f64());
                 let fused_rank = hits
                     .iter()
@@ -168,7 +169,7 @@ impl EvalCommand {
             eprintln!(
                 "{repository}: {} questions over {} functions",
                 questions.len(),
-                units.len()
+                index.len()
             );
         }
         search_seconds.sort_by(f64::total_cmp);

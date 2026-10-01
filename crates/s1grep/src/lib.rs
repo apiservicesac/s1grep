@@ -14,4 +14,5 @@ pub mod runtime_library;
 pub mod searcher;
 pub mod server;
 pub mod service;
+pub mod session;
 pub mod settings;

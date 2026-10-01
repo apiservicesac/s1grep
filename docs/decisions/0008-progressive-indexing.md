@@ -1,7 +1,7 @@
 # 0008. Progressive indexing with priorities and reported coverage
 
 - Status: Accepted (2026-10-01)
-- Implementation: Outline pass in 0.2.4; scheduler in stage 2.
+- Implementation: outline pass in 0.2.4; bounded first wait, yielding to searches and resuming on start in 0.2.5.
 
 ## Context
 

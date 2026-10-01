@@ -1,5 +1,5 @@
 use s1_engine::{Accelerator, Embedder, EmbedderBundle, EngineOptions, LayaEngine, ModelBundle, QuestionSet};
-use s1_index::{CodeUnit, FusionWeights, RankFusion, SearchableUnit, VectorRanking};
+use s1_index::{CodeUnit, FusionWeights, IndexStore, RankFusion, VectorIndex, VectorRow};
 use serde_json::{Value, json};
 
 use crate::models::{ModelDirectory, Retriever};
@@ -62,10 +62,18 @@ impl Searcher {
         self.judge.is_some()
     }
 
-    /// Candidates for `query` among `units`, best first, with the judge's reading of the first `judged`, and the
-    /// judge's order fused with the retriever's (weights tuned on the dev exam).
-    pub fn search(&mut self, query: &str, units: &[SearchableUnit], judged: usize) -> anyhow::Result<Vec<Hit>> {
-        let mut hits = self.by_meaning(query, units)?;
+    /// The functions that answer `query` best: the nearest rows of `index` that `keep` accepts, read from `store`,
+    /// with the judge's reading of the first `judged`, and the judge's order fused with the retriever's (weights
+    /// tuned on the development exam).
+    pub fn search(
+        &mut self,
+        query: &str,
+        index: &VectorIndex,
+        keep: impl Fn(&VectorRow) -> bool,
+        store: &IndexStore,
+        judged: usize,
+    ) -> anyhow::Result<Vec<Hit>> {
+        let mut hits = self.by_meaning(query, index, keep, store)?;
         let judged = judged.min(hits.len());
         if self.judge.is_none() || judged == 0 {
             return Ok(hits);
@@ -75,28 +83,40 @@ impl Searcher {
             hit.judge = Some(*score);
         }
         let order = RankFusion::order(hits.len(), &scores, FusionWeights::tuned(self.retriever.key(), judged));
-        Ok(order.into_iter().map(|index| hits[index].clone()).collect())
+        Ok(order.into_iter().map(|position| hits[position].clone()).collect())
     }
 
-    fn by_meaning(&mut self, query: &str, units: &[SearchableUnit]) -> anyhow::Result<Vec<Hit>> {
-        if units.is_empty() {
+    fn by_meaning(
+        &mut self,
+        query: &str,
+        index: &VectorIndex,
+        keep: impl Fn(&VectorRow) -> bool,
+        store: &IndexStore,
+    ) -> anyhow::Result<Vec<Hit>> {
+        if index.is_empty() {
             return Ok(Vec::new());
         }
         let query_vector = self.embedder.embed_query(query)?;
-        let vectors: Vec<&[f32]> = units.iter().map(|searchable| searchable.vector.as_slice()).collect();
-        Ok(VectorRanking::top(&query_vector, &vectors, SearchSettings::CANDIDATES)
-            .into_iter()
+        let nearest = index.nearest(&query_vector, SearchSettings::CANDIDATES, keep);
+        let ids: Vec<i64> = nearest
+            .iter()
+            .map(|(position, _)| index.row(*position).unit_id)
+            .collect();
+        let units = store.units_by_ids(&ids)?;
+        Ok(nearest
+            .iter()
+            .filter_map(|(position, similarity)| {
+                let row = index.row(*position);
+                let stored = units.iter().find(|stored| stored.id == row.unit_id)?;
+                Some((row, stored, *similarity))
+            })
             .enumerate()
-            .map(|(rank, (index, similarity))| Hit {
-                unit: units[index].stored.unit.clone(),
+            .map(|(rank, (row, stored, similarity))| Hit {
+                unit: stored.unit.clone(),
                 retriever_rank: rank + 1,
                 similarity,
                 judge: None,
-                found_by: if units[index].whole {
-                    FoundBy::Code
-                } else {
-                    FoundBy::Outline
-                },
+                found_by: if row.whole { FoundBy::Code } else { FoundBy::Outline },
             })
             .collect())
     }

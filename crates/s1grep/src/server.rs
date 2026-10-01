@@ -144,6 +144,7 @@ impl SearchServer {
 
     pub fn run(mut self) -> anyhow::Result<()> {
         let mut last_activity = Instant::now();
+        let mut last_request = Instant::now();
         loop {
             match self.listener.accept() {
                 Ok((stream, _)) => {
@@ -154,9 +155,12 @@ impl SearchServer {
                         Err(error) => eprintln!("s1grep server: {error:#}"),
                     }
                     last_activity = Instant::now();
+                    last_request = last_activity;
                 }
                 Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
-                    if self.service.has_indexing() {
+                    // Right after a connection (a ping, usually followed by a search) indexing waits a moment, so the
+                    // search that follows does not queue behind a background batch.
+                    if self.service.has_indexing() && last_request.elapsed() >= ServerSettings::YIELD_AFTER_REQUEST {
                         // Background indexing counts as activity: the process stays until every project is indexed.
                         // A failed step pauses before the next try instead of spinning on the same error.
                         match self.service.index_step() {
