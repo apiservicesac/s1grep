@@ -2,6 +2,14 @@
 
 All notable changes to `s1grep` are documented here. Versions follow [Semantic Versioning](https://semver.org).
 
+## [0.2.1] — 2026-10-01
+
+### Fixed
+- A search no longer waits up to three minutes when the models are missing or the background process cannot start: it
+  stops at once and says why (for missing models, to run `s1grep setup`).
+- `install.sh` reads the glibc version correctly (it rejected 2.39 as older than 2.38) and no longer prints
+  `work: unbound variable` when it finishes.
+
 ## [0.2.0] — 2026-10-01
 
 ### Added

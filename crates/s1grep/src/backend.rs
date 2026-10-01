@@ -34,9 +34,8 @@ impl SearchBackend {
         request: &SearchRequest,
         progress: &mut dyn FnMut(IndexEvent),
     ) -> anyhow::Result<(SearchResponse, Answered)> {
-        if self.use_server
-            && let Some(client) = BackgroundServer::ensure(&self.models, progress)
-        {
+        if self.use_server {
+            let client = BackgroundServer::ensure(&self.models, progress)?;
             return Ok((client.search(request, progress)?, Answered::Server));
         }
         if self.local.is_none() {

@@ -8,6 +8,7 @@ use std::time::{Duration, Instant};
 use anyhow::{Context, bail};
 use serde::{Deserialize, Serialize};
 
+use crate::hub::ModelInstaller;
 use crate::models::{CacheDirectory, ModelDirectory};
 use crate::progress::IndexEvent;
 use crate::service::{SearchRequest, SearchResponse, SearchService};
@@ -315,27 +316,53 @@ impl ServerClient {
 pub struct BackgroundServer;
 
 impl BackgroundServer {
-    /// A client of a running server of this version, starting one if needed; `None` if it could not be started.
-    pub fn ensure(models: &ModelDirectory, progress: &mut dyn FnMut(IndexEvent)) -> Option<ServerClient> {
+    /// A client of a running server of this version, starting one if needed. Fails at once, with the reason, when the
+    /// models are missing or the new process exits instead of waiting for it.
+    pub fn ensure(models: &ModelDirectory, progress: &mut dyn FnMut(IndexEvent)) -> anyhow::Result<ServerClient> {
         if let Some(client) = ServerClient::connect() {
-            return Some(client);
+            return Ok(client);
+        }
+        let folder = models.resolved()?;
+        if !ModelInstaller::is_complete(&folder) {
+            bail!(
+                "the models are not in {}: run `s1grep setup` to download them (about 2.4 GB, once)",
+                folder.display()
+            );
         }
         if let Some(outdated) = ServerClient::any() {
             let _ = outdated.stop();
         }
         progress(IndexEvent::StartingServer);
-        Self::spawn(models).ok()?;
+        let mut child = Self::spawn(models)?;
         let deadline = Instant::now() + ServerSettings::START_TIMEOUT;
         while Instant::now() < deadline {
             if let Some(client) = ServerClient::connect() {
-                return Some(client);
+                return Ok(client);
+            }
+            if child.try_wait()?.is_some() {
+                bail!(
+                    "the background process stopped: {}",
+                    Self::last_log_line().unwrap_or_else(|| "see the server log".to_string())
+                );
             }
             std::thread::sleep(ServerSettings::POLL_INTERVAL);
         }
-        None
+        bail!(
+            "the background process did not start within {} s",
+            ServerSettings::START_TIMEOUT.as_secs()
+        )
     }
 
-    fn spawn(models: &ModelDirectory) -> anyhow::Result<()> {
+    /// The last line the background process wrote, usually the reason it stopped.
+    fn last_log_line() -> Option<String> {
+        let text = std::fs::read_to_string(CacheDirectory::root().ok()?.join(ServerSettings::LOG_FILE)).ok()?;
+        text.lines()
+            .rev()
+            .find(|line| !line.trim().is_empty())
+            .map(|line| line.trim_start_matches("Error: ").to_string())
+    }
+
+    fn spawn(models: &ModelDirectory) -> anyhow::Result<std::process::Child> {
         let log_path = CacheDirectory::root()?.join(ServerSettings::LOG_FILE);
         if let Some(parent) = log_path.parent() {
             std::fs::create_dir_all(parent)?;
@@ -360,7 +387,6 @@ impl BackgroundServer {
             const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
             command.creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP);
         }
-        command.spawn().context("starting the s1grep server")?;
-        Ok(())
+        command.spawn().context("starting the s1grep background process")
     }
 }
