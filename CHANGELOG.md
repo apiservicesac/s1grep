@@ -2,7 +2,7 @@
 
 All notable changes to `s1grep` are documented here. Versions follow [Semantic Versioning](https://semver.org).
 
-## [Unreleased]
+## [0.4.0] — 2026-10-01
 
 ### Added
 - A word index per project (tantivy, BM25) with a tokenizer for code: it splits `camelCase`, `snake_case`, acronyms
