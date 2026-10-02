@@ -2,6 +2,8 @@
 
 Find code by asking what it does, in English or Spanish. s1grep runs locally: your code never leaves the machine.
 
+How it was built and measured, including what did not work: [From Laya to s1-code](https://joucode.apiservicesac.com/blog/s1-code-and-s1grep) ([en español](https://joucode.apiservicesac.com/blog/s1-code-y-s1grep)). Models: [huggingface.co/api-service-sac](https://huggingface.co/api-service-sac).
+
 ```text
 $ cd ~/work/shop && s1grep "where do we retry a failed payment"
  1. billing/gateway/client.py:41-58  GatewayClient.send_with_retry  judge 93%
@@ -11,7 +13,7 @@ $ cd ~/work/shop && s1grep "where do we retry a failed payment"
     … 6 more lines
 ```
 
-Status: early (0.2). Linux (x86-64, glibc 2.38 or newer: Ubuntu 24.04, Debian 13) and Windows (x86-64).
+Status: early (0.5). Linux (x86-64, glibc 2.38 or newer: Ubuntu 24.04, Debian 13) and Windows (x86-64).
 
 ## Install
 
